@@ -1,8 +1,19 @@
 # Data model
 
-> Current schema lives in [`supabase/schema.sql`](../supabase/schema.sql) (tables marked ✅
-> below). NWE-110 converts it into `supabase/migrations/0001_init.sql`; later stories add
-> numbered migrations. 🚧 tables are planned — the owning story designs the final columns.
+> **The full v1.0 schema lives in [`supabase/schema.sql`](../supabase/schema.sql)** (designed
+> 2026-07-07 from the complete backlog, with inline comments explaining every "why"). NWE-110
+> converts it verbatim into `supabase/migrations/0001_init.sql`; later stories add numbered
+> migrations only for genuine design changes. Markers below: ✅ = the app feature using the
+> table exists · 🚧 = table exists in the schema, its feature story hasn't been built yet.
+> Feature stories **verify their tables against real needs** (and document deviations) rather
+> than designing them from scratch.
+>
+> **Tracking columns convention:** every table has `created_at`; mutable tables have
+> `updated_at` maintained by the `handle_updated_at` trigger (never by app code). Lifecycle
+> timestamps where stories need them: `seen_at` (badges → dashboard banner), `read_at`
+> (insights → "first review read" badge), `applied_at`/`dismissed_at` (coach proposals →
+> approve/dismiss + detector snooze). Consent is a timestamp (`photo_ai_consented_at`), not a
+> boolean — privacy reviews ask *when*, not just *if*.
 
 ## Principles
 
@@ -67,9 +78,11 @@ Sets: `session_id (cascade)`, `user_id`, `exercise text`, `set_number`, `reps`, 
 
 ### 🚧 push_tokens (607) — user_id, expo_token, device label, updated_at; RLS; notification prefs (categories + quiet hours) live on the profile or a jsonb column
 
-### 🚧 favorite_foods (201) · recipes + recipe_items (202) · water_logs (203) · routines + routine_exercises (302) · measurements (403) · quest_days (605, only if compute-on-read proves insufficient)
-Shapes sketched in their TASKS.md stories; owning story finalizes columns and writes the
-migration + Zod schemas in `packages/shared` together (single source of truth for both sides).
+### 🚧 favorite_foods (201) · recipes + recipe_items (202) · water_logs (203) · routines + routine_exercises (302) · push_tokens (607)
+Full definitions in `schema.sql`; the owning story writes the matching Zod schemas in
+`packages/shared` and adjusts columns via a new migration only if the build reveals a gap.
+Deliberately absent: `measurements` (post-v1.0, NWE-403) and `quest_days` (NWE-605 computes
+on read first).
 
 ### 🚧 insights (NWE-502)
 `user_id`, `kind ('weekly'|'physique')`, `week_start date` (weekly only, unique per user+week),

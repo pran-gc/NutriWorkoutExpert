@@ -44,14 +44,15 @@ Status: `[x]` done · `[~]` drafted/partial — needs review · `[ ]` not starte
 
 ## v1.0 scope 🚀
 
-**v1.0 = M0 through M8.** Everything a user needs to track food/workouts/weight, see beautiful
-analytics, get an AI weekly review, snap-to-log meals with AI, compare physique progress, stay
-engaged via quests/streaks/badges with reminders — plus the App-Store-required account controls.
+**v1.0 = M0 through M9.** Everything a user needs to track food/workouts/weight, see beautiful
+analytics, snap-to-log meals with AI, compare physique progress, stay engaged via
+quests/streaks/badges with reminders — **plus the AI coaches (weekly review, workout
+generation, adaptive training, coach council), which are the USP vs. every competitor and ship
+in 1.0** (user decision 2026-07-06). The coaches work from day one — the generator needs only
+the setup Q&A, the council's first plan lands after week one — and get sharper with usage.
 
-**Deliberately after v1.0 (v1.1+):** AI workout generation (509), adaptive training (510),
-coach council (511), coach chat (505) — the coaches genuinely improve with real usage data, and
-launching without them gives v1.1 a headline feature. Also later: barcode scan (207), rest timer
-(306), measurements (403), HealthKit/Health Connect (701/702), Play Store (804).
+**After v1.0:** coach chat (505 — quota-hungry, needs the council live first), barcode scan
+(207), rest timer (306), measurements (403), HealthKit/Health Connect (701/702), Play Store (804).
 
 | # | Theme | Stories |
 |---|-------|---------|
@@ -63,8 +64,9 @@ launching without them gives v1.1 a headline feature. Also later: barcode scan (
 | M5 | AI core: weekly review | NWE-501, 502, 503, 404 |
 | M6 | Photos & snap-to-log | NWE-204, 508, 202, 507, 405 |
 | M7 | Notifications & gamification | NWE-607, 601, 603, 602, 605, 606, 604 |
-| M8 | Release — **v1.0 launch** | NWE-117, 801, 802, 803 |
-| v1.1+ | AI coaches | NWE-509, 510, 511, 505 |
+| M8 | AI coaches (USP) | NWE-509, 510, 511 |
+| M9 | Release — **v1.0 launch** | NWE-117, 801, 802, 803 |
+| v1.1 | — | NWE-505 (coach chat) |
 | Later | — | NWE-207, 306, 403, 701, 702, 804 |
 
 > M1 is the "latest architectures and patterns" epic. Nothing in M2+ starts until M1 is done —
@@ -428,17 +430,41 @@ The user always approves changes before targets or programs are modified.
 5. Component tests: candidate sheet, ingredient editing, estimated badge, fallback path.
 **Depends on:** NWE-204, 114. *(Absorbs former NWE-506.)*
 
-### NWE-509 · AI workout generation — v1.1 · O
-Setup Q&A (goal, experience, days/week, equipment, injuries/constraints) → Gemini returns a program as **strict JSON mapped to exercise-library IDs** (unmatched → custom or rejected, never free text into the schema) → saved as normal, fully editable routines; natural-language adjust ("less shoulder work") produces an approvable diff; rationale stored in `insights` (kind='training'). **Depends on:** NWE-301, 302.
+### NWE-509 · AI workout generation — `[ ]` · O
+**Goal:** the training coach writes your program — works from day one (needs zero history, only the setup Q&A).
+**UI:** a "✨ Generate my program" card at the top of the Routines segment (and offered at the end of onboarding once this ships). Q&A wizard, one question per page (same visual language as onboarding): goal chips → experience level → days/week → equipment (multi-select chips: gym, dumbbells, bodyweight, bands…) → injuries/constraints (free text, optional). Loading state with rotating friendly copy ("Balancing your push days…"). Result: a program preview — one card per training day (day name, exercise rows with sets×reps, a one-line rationale under the day) — with three actions: **Save program** (primary), **Adjust…** (free-text field: "less shoulder work", "45 min max" → regenerates a diff), **Regenerate**.
+**Acceptance criteria:**
+1. `POST /routines/generate`: Gemini returns the program as **strict JSON validated by a shared Zod schema, exercises mapped to library IDs** — unmatched exercise names are created as custom entries or dropped with a note; free text never enters the schema (malformed output → one retry → graceful failure). TDD'd with mocked Gemini fixtures.
+2. Saving writes normal NWE-302 routines — fully editable afterwards, nothing locked or special-cased.
+3. "Adjust" regenerates and renders a **diff view** (added/removed/changed rows highlighted green/red/amber) that the user approves or discards; approval replaces the draft, never silently.
+4. Program rationale stored in `insights` (kind='training'); prompt versioned (`prompts/program-gen.v1.ts`); per-user generation quota guard (TDD'd).
+5. Component tests: wizard steps, preview rendering, diff approve/discard. Maestro: generate → save → routine appears.
+**Depends on:** NWE-301, 302.
 
-### NWE-510 · Adaptive training — v1.1 · O
-Deterministic shared detectors (TDD'd): plateau (no e1RM progress N sessions), missed sessions, volume drop, rapid progress. On detection (or fortnightly), AI proposes routine adjustments as a **diff the user approves before applying**; applied changes logged in `insights`. **Depends on:** NWE-509, 501.
+### NWE-510 · Adaptive training — `[ ]` · O
+**Goal:** the program evolves with logged performance — detection is deterministic, wording is AI, applying is the user's call.
+**UI:** when a detector fires, a coach card appears at the top of the Workouts tab (and mirrors in Insights): small coach avatar, one-line finding ("Your bench press has stalled for 4 sessions"), and a "See suggestion" button → suggestion screen with the proposed routine diff (old vs new, same diff visual as 509) + the coach's short reasoning + **Apply** / **Dismiss**. Dismissed suggestions don't reappear for that detector for 2 weeks.
+**Acceptance criteria:**
+1. Detectors are pure shared functions, TDD'd: plateau (no e1RM progress in N sessions), missed sessions vs plan, volume drop week-over-week, rapid progress. Thresholds documented in the code.
+2. Evaluated fortnightly (cron) and after session saves; firing calls Gemini with the detector context + program state → returns a strict-JSON routine diff (same schema discipline as 509).
+3. **Nothing auto-applies.** Apply updates the routine atomically and logs the change in `insights` (kind='training'); Dismiss snoozes that detector 2 weeks (TDD'd gating).
+4. Quota-guarded (max one proposal per detector per fortnight); integration tests with mocked Gemini cover fire → propose → apply and fire → dismiss → snooze.
+5. Component tests: coach card, diff screen, apply/dismiss flows.
+**Depends on:** NWE-509, 501.
 
-### NWE-511 · Coach council — v1.1 · O
-One orchestrated pipeline over shared context (weekly summary + goal + program state) with three role-specialized prompt sections → one coordinated weekly plan: target diffs (goal coach — absorbs auto-adjusting targets, respects `targets_locked`), diet proposals grounded in actual logs (nutrition coach), program focus (training coach, uses 510). Rendered in Insights with per-coach attribution; **every diff needs user approval**. Between weeklies: deterministic drop detectors (logging lapse ≥3 days, weight stall 2+ weeks vs goal, volume drop) trigger short encouraging check-ins — quota-guarded, max one per detector per week. **Depends on:** NWE-501, 502, 404, 509/510.
+### NWE-511 · Coach council — `[ ]` · O
+**Goal:** goal coach + nutrition coach + training coach produce ONE coordinated weekly plan and monitor progress together — the app's flagship feature.
+**UI:** the Insights weekly review card grows into the **council plan**: three collapsible sections with coach identities — 🎯 Goal coach (progress vs goal + any target-change proposal), 🥗 Nutrition coach (diet proposals grounded in what was actually logged: "your protein dipped on weekends — two easy swaps…"), 🏋️ Training coach (adherence + focus, surfacing 510 suggestions). Proposals that change numbers render as **inline approve/dismiss chips** ("Calorie target 2 150 → 2 050 · Apply?"). Between weeklies, detector check-ins appear as small dated cards in the same feed ("Nutrition coach · Wed — 3 days without logs. No stress — today's a clean slate.").
+**Acceptance criteria:**
+1. One orchestrated pipeline (single structured prompt with role sections, or sequential role prompts sharing context — decide, document here): input = weekly summary (501) + goal + program state; output = strict-JSON plan validated by a shared Zod schema with per-coach sections and typed proposals (target diff / diet suggestion / training focus). TDD'd with mocked Gemini.
+2. **Every numeric/program proposal requires explicit user approval**; applying a target diff respects `targets_locked` (absorbs former auto-adjusting-targets story); applied diffs logged in `insights`.
+3. Weekly cadence rides the NWE-603 cron; council replaces the plain weekly review from 502 (502's generator becomes the fallback when there's insufficient data — brand-new users get the simple review, council kicks in when data supports it; boundary TDD'd).
+4. Check-in triggers are deterministic shared detectors (logging lapse ≥3 days, weight stall 2+ weeks vs goal, volume drop) — quota-guarded, max one per detector per week, encouraging tone, never guilt (copy reviewed against the guardrail).
+5. Prompt versioned (`prompts/council.v1.ts`); per-coach attribution rendered; component tests for sections, chips, check-in cards; integration test: full weekly run end-to-end with mocked Gemini.
+**Depends on:** NWE-501, 502, 404, 509, 510, 603 (cron).
 
-### NWE-505 · Coach chat — `⏸ later` · O
-Free-form chat with the council, grounded in user aggregates; quota-hungry, needs guardrails. Depends on 511.
+### NWE-505 · Coach chat — `⏸ v1.1` · O
+Free-form chat with the council, grounded in user aggregates; quota-hungry, needs guardrails and the council live first. Depends on 511.
 
 ---
 
@@ -547,11 +573,9 @@ One shared animation layer so every win feels consistent — used by ring closes
 
 ---
 
-## v1.1 — AI coaches (headline for the first big update)
+## v1.1 — first update
 
-NWE-509 (AI workout generation) → NWE-510 (adaptive training) → NWE-511 (coach council) →
-NWE-505 (coach chat). Full specs above in Epic 5. Rationale: the coaches get dramatically
-better once there's real usage data to ground them in, and v1.1 needs a headline.
+NWE-505 (coach chat) once the council is live and quota behavior under real usage is known.
 
 ---
 
@@ -561,4 +585,5 @@ better once there's real usage data to ground them in, and v1.1 needs a headline
 
 - Scaffold draft (2026-07-06) predates this backlog: NWE-101 covers its review. Known issues: hardcoded `#888` input text color; duplicated styles across screens.
 - AGENTS.md + docs/ + folder CLAUDE.md files (written 2026-07-06) describe the TARGET architecture with current-state caveats; NWE-116 does the post-M1 accuracy pass with the user. TASKS.md wins on conflict.
-- 2026-07-06 backlog audit: added NWE-117 (forgot password + account deletion/export — Apple requires in-app deletion; would have blocked launch) and NWE-607 (notification infrastructure). Moved 509/510/511 to v1.1. Former NWE-402/504/506 remain absorbed by 407/511/508 respectively.
+- 2026-07-06 backlog audit: added NWE-117 (forgot password + account deletion/export — Apple requires in-app deletion; would have blocked launch) and NWE-607 (notification infrastructure). 509/510/511 were briefly cut to v1.1, then **restored to v1.0 (M8) by user decision — the coaches are the USP and ship at launch**; only coach chat (505) is v1.1. Former NWE-402/504/506 remain absorbed by 407/511/508 respectively.
+- 2026-07-07: **full v1.0 schema pre-designed** in `supabase/schema.sql` (commented, with tracking/lifecycle columns: created_at everywhere, trigger-maintained updated_at, seen_at/read_at/applied_at/dismissed_at, consent as timestamp). Feature stories' "Migration:" ACs now mean **verify the pre-built table against the story + write the shared Zod schemas**; add a new migration only for genuine design changes discovered during the build. NWE-110 still converts schema.sql → migration 0001 verbatim.

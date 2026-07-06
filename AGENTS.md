@@ -56,7 +56,8 @@ before M1. If any doc conflicts with TASKS.md, **TASKS.md wins**.
 - **Photos: on-device only, never stored server-side** — "your photos are never stored" is a
   product promise. Ephemeral pass-through for opt-in AI analysis only.
 - **Units**: metric (kg / cm / g / ml). Dates: `logged_on` = device-local `YYYY-MM-DD`.
-- **v1.0 scope**: milestones M0–M8 in TASKS.md; AI coach stories (509/510/511/505) are v1.1.
+- **v1.0 scope**: milestones M0–M9 in TASKS.md — the AI coaches (509/510/511) are the USP and
+  ship in 1.0; only coach chat (505) is v1.1.
 - **Gamification guardrail**: quests/badges/streaks reflect real logged actions computed
   server-side (never self-reported); copy never guilts or manufactures FOMO; rest days respected.
 - **Notifications**: permission requested in-context (first enable), never at launch; user
