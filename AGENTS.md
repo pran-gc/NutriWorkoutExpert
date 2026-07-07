@@ -14,6 +14,7 @@ story-by-story to agent sessions.
 | What story am I building, with what acceptance criteria? | [TASKS.md](TASKS.md) |
 | How does the system fit together? | [docs/architecture.md](docs/architecture.md) |
 | What does each screen/flow do? | [docs/ui-flows.md](docs/ui-flows.md) |
+| What should each screen look like? | [docs/wireframes.html](docs/wireframes.html) — annotated wireframes per story |
 | API conventions + endpoint catalog | [docs/api.md](docs/api.md) |
 | Tables, RLS, migrations | [docs/data-model.md](docs/data-model.md) |
 | How to test / TDD rules | [docs/testing.md](docs/testing.md) |
@@ -106,6 +107,8 @@ npm run test / test:int   # unit / integration               (post NWE-111)
 - API endpoints: Zod-validated with shared schemas, enveloped responses, thin routes
   (docs/api.md).
 - Copy tone: encouraging, never guilt-tripping; AI prompts body-neutral, no medical claims.
-- UI stories in TASKS.md include a **UI description** (layout, states, look); build to it and
-  agree deviations with the user. Celebrations/animations go through the shared motion system
-  (NWE-606: tokens, reduced-motion fallbacks, never block input).
+- UI stories in TASKS.md include a **UI description** (layout, states, look) and a matching
+  wireframe in `docs/wireframes.html` (open it, or read the markup — it's layout truth: element
+  order, grouping, hierarchy, where the accent goes). Build to both; agree deviations with the
+  user. Celebrations/animations go through the shared motion system (NWE-606: tokens,
+  reduced-motion fallbacks, never block input).

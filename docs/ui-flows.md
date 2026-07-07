@@ -1,5 +1,7 @@
 # UI flows
 
+> **Visual companion:** [`wireframes.html`](wireframes.html) — annotated phone-frame wireframes
+> for every v1.0 screen, keyed by story ID. This file describes flows; that file shows layout.
 > Screens marked 🚧 don't exist yet — the story ID says where they come from.
 > Visual language: themed light/dark via `components/Themed.tsx`, accent `#16a34a`,
 > destructive `#dc2626`, cards + progress bars from `components/ui.tsx`. Metric units.

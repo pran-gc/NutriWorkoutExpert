@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NutriWorkoutExpert â€” v1.0 Wireframes</title>
+<style>
+  :root{
+    --bg:#f5f5f4; --ink:#292524; --muted:#78716c; --line:#d6d3d1;
+    --card:#ffffff; --mono:ui-monospace,'Cascadia Code',Consolas,monospace;
+    --accent:#16a34a; --red:#dc2626; --amber:#f59e0b; --blue:#3b82f6;
+    /* phone-screen tokens are FIXED (wireframes are drawn on the app's light ground) */
+    --scr:#ffffff; --scr-ink:#292524; --scr-muted:#a8a29e; --scr-box:#f0efee; --scr-line:#dcd9d6;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#1c1917; --ink:#e7e5e4; --muted:#a8a29e; --line:#44403c; --card:#292524; }
+  }
+  :root[data-theme="dark"]{ --bg:#1c1917; --ink:#e7e5e4; --muted:#a8a29e; --line:#44403c; --card:#292524; }
+  :root[data-theme="light"]{ --bg:#f5f5f4; --ink:#292524; --muted:#78716c; --line:#d6d3d1; --card:#ffffff; }
+
+  body{ background:var(--bg); color:var(--ink); font:15px/1.55 system-ui,-apple-system,'Segoe UI',sans-serif;
+        margin:0; padding:32px 20px 80px; }
+  main{ max-width:1240px; margin:0 auto; }
+  h1{ font-size:26px; margin:0 0 4px; letter-spacing:-.01em; }
+  h2{ font-size:19px; margin:56px 0 4px; padding-top:18px; border-top:1px solid var(--line); }
+  .sub{ color:var(--muted); margin:0 0 18px; max-width:70ch; }
+  .rules{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 22px; margin:22px 0 8px; max-width:76ch; }
+  .rules li{ margin:6px 0; }
+  .rules b{ font-weight:600; }
+  .toc{ display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 0; padding:0; list-style:none; }
+  .toc a{ font:12px var(--mono); color:var(--ink); text-decoration:none; border:1px solid var(--line);
+          background:var(--card); border-radius:999px; padding:4px 11px; display:inline-block; }
+  .toc a:hover,.toc a:focus-visible{ border-color:var(--accent); color:var(--accent); outline:none; }
+
+  .board{ display:flex; flex-wrap:wrap; gap:34px; align-items:flex-start; margin-top:18px; }
+  figure{ margin:0; width:318px; }
+  .head{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:8px; }
+  .head b{ font-size:14px; }
+  .story{ font:11px var(--mono); color:var(--accent); white-space:nowrap; }
+
+  .phone{ background:var(--scr); color:var(--scr-ink); border:2px solid var(--line); border-radius:26px;
+          padding:14px 12px 10px; display:flex; flex-direction:column; gap:8px; min-height:560px;
+          font-size:12px; line-height:1.35; box-shadow:0 1px 3px rgba(0,0,0,.07); }
+  .phone.short{ min-height:0; }
+
+  figcaption{ margin-top:10px; }
+  .notes{ margin:0; padding-left:18px; color:var(--muted); font-size:12.5px; }
+  .notes li{ margin:4px 0; }
+  .notes li::marker{ font-family:var(--mono); color:var(--accent); }
+
+  /* ---- wireframe atoms (inside phones) ---- */
+  .sect{ font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--scr-muted); margin-top:4px; }
+  .row{ display:flex; gap:6px; align-items:center; }
+  .grow{ flex:1; }
+  .sp{ justify-content:space-between; }
+  .bar{ background:var(--scr-box); border-radius:6px; height:12px; }
+  .input{ border:1px solid var(--scr-line); border-radius:9px; padding:7px 9px; color:var(--scr-muted); background:var(--scr); }
+  .btn{ background:var(--accent); color:#fff; border-radius:9px; padding:8px 10px; text-align:center; font-weight:600; }
+  .btn-ghost{ border:1px solid var(--accent); color:var(--accent); border-radius:9px; padding:7px 10px; text-align:center; }
+  .btn-danger{ color:var(--red); text-align:center; padding:6px; font-weight:600; }
+  .chip{ border:1px solid var(--scr-line); border-radius:999px; padding:3px 9px; color:var(--scr-muted); font-size:11px; }
+  .chip.on{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .card{ background:var(--scr-box); border-radius:11px; padding:9px 10px; display:flex; flex-direction:column; gap:6px; }
+  .lrow{ display:flex; justify-content:space-between; gap:8px; padding:5px 2px; border-bottom:1px solid var(--scr-line); }
+  .lrow:last-child{ border-bottom:0; }
+  .mut{ color:var(--scr-muted); }
+  .big{ font-size:19px; font-weight:700; }
+  .ph{ border:1.5px dashed var(--scr-line); border-radius:10px; color:var(--scr-muted);
+       display:flex; align-items:center; justify-content:center; text-align:center; padding:6px; }
+  .n{ display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; flex:none;
+      border-radius:50%; background:var(--accent); color:#fff; font:10px/1 var(--mono); }
+  .tabs{ margin-top:auto; display:flex; justify-content:space-around; border-top:1px solid var(--scr-line);
+         padding-top:8px; color:var(--scr-muted); font-size:10px; text-align:center; }
+  .tabs .on{ color:var(--accent); font-weight:700; }
+  .seg{ display:flex; border:1px solid var(--scr-line); border-radius:9px; overflow:hidden; text-align:center; }
+  .seg>div{ flex:1; padding:5px; color:var(--scr-muted); }
+  .seg .on{ background:var(--accent); color:#fff; font-weight:600; }
+  .check{ width:16px; height:16px; border-radius:50%; border:1.5px solid var(--scr-line); flex:none; }
+  .check.on{ background:var(--accent); border-color:var(--accent); }
+  .toggle{ width:30px; height:17px; border-radius:999px; background:var(--scr-line); flex:none; position:relative; }
+  .toggle.on{ background:var(--accent); }
+  .toggle::after{ content:''; position:absolute; top:2px; left:2px; width:13px; height:13px; border-radius:50%; background:#fff; }
+  .toggle.on::after{ left:auto; right:2px; }
+  .scrim{ background:var(--scr-box); border-radius:12px 12px 0 0; margin:-6px -4px 0; padding:4px; text-align:center; color:var(--scr-muted); font-size:10px; }
+  .sheet{ border:1.5px solid var(--scr-line); border-radius:16px 16px 0 0; padding:10px 10px 6px; display:flex; flex-direction:column; gap:7px; margin-top:auto; }
+  .rings{ width:120px; height:120px; border-radius:50%; flex:none; position:relative;
+          background:conic-gradient(var(--amber) 0 78%, var(--scr-box) 78% 100%); }
+  .rings::before{ content:''; position:absolute; inset:14px; border-radius:50%;
+          background:conic-gradient(var(--red) 0 66%, var(--scr-box) 66% 100%); box-shadow:0 0 0 3px var(--scr); }
+  .rings::after{ content:''; position:absolute; inset:28px; border-radius:50%;
+          background:conic-gradient(var(--blue) 0 64%, var(--scr-box) 64% 100%); box-shadow:0 0 0 3px var(--scr); }
+  .rings .hole{ position:absolute; inset:42px; border-radius:50%; background:var(--scr); display:flex; flex-direction:column;
+          align-items:center; justify-content:center; font-size:9px; color:var(--scr-muted); box-shadow:0 0 0 3px var(--scr); }
+  .rings .hole b{ font-size:13px; color:var(--scr-ink); }
+  .wbar{ height:10px; border-radius:5px; background:var(--scr-box); overflow:hidden; }
+  .wbar>div{ height:100%; border-radius:5px; }
+  .heat{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .heat i{ aspect-ratio:1; border-radius:3px; background:var(--scr-box); }
+  .heat .g1{ background:#bbf7d0; } .heat .g2{ background:#4ade80; } .heat .g3{ background:var(--accent); }
+  .heat .over{ background:#fca5a5; }
+  .cols{ display:flex; align-items:flex-end; gap:4px; height:56px; }
+  .cols i{ flex:1; border-radius:3px 3px 0 0; background:var(--scr-line); }
+  .spark{ height:56px; border-radius:8px; background:
+          linear-gradient(to top right, transparent 48%, var(--scr-line) 49%, var(--scr-line) 51%, transparent 52%),
+          var(--scr-box); position:relative; }
+  .diff-add{ background:#dcfce7; border-radius:6px; padding:3px 6px; }
+  .diff-del{ background:#fee2e2; border-radius:6px; padding:3px 6px; text-decoration:line-through; color:var(--scr-muted); }
+  .badge{ background:var(--scr-box); border-radius:10px; aspect-ratio:1; display:flex; flex-direction:column; gap:3px;
+          align-items:center; justify-content:center; text-align:center; padding:5px; font-size:10px; }
+  .badge.lock{ opacity:.45; }
+  .grid3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; }
+  .est{ background:var(--amber); color:#fff; border-radius:5px; font-size:9px; padding:1px 5px; }
+  .conf{ border:1px solid var(--accent); color:var(--accent); border-radius:5px; font-size:9px; padding:1px 5px; }
+  @media (prefers-reduced-motion:reduce){ *{ scroll-behavior:auto; } }
+</style>
+
+</head>
+<body>
+<main>
+<h1>NutriWorkoutExpert â€” v1.0 wireframes</h1>
+<p class="sub">Layout truth for every v1.0 screen. Grey boxes are placeholders on purpose â€” this is structure, not pixel design.</p>
+
+<div class="rules">
+  <b>How to read these (agents, this means you):</b>
+  <ul>
+    <li><b>TASKS.md wins.</b> Each frame maps to a story; its acceptance criteria + UI description are the contract. Wireframes resolve ambiguity in layout, order, and hierarchy.</li>
+    <li><b>Colors are real:</b> accent <code>#16a34a</code>, destructive <code>#dc2626</code>, macros P <code>#dc2626</code> / C <code>#f59e0b</code> / F <code>#3b82f6</code>. Grey boxes = themed surfaces from <code>components/ui.tsx</code>, not literal grey.</li>
+    <li><b>Every screen also needs</b> empty, loading, and error states (docs/ui-flows.md) â€” drawn here only where the state IS the design.</li>
+    <li>Frames are drawn on the light theme; the app supports dark via <code>components/Themed.tsx</code>.</li>
+    <li>Numbered green dots â†” numbered notes under each frame.</li>
+  </ul>
+  <ul class="toc">
+    <li><a href="#auth">Auth &amp; onboarding</a></li><li><a href="#dash">Dashboard</a></li>
+    <li><a href="#food">Food</a></li><li><a href="#snap">Snap-to-log</a></li>
+    <li><a href="#workouts">Workouts</a></li><li><a href="#coach">AI coaches</a></li>
+    <li><a href="#analytics">Analytics</a></li><li><a href="#insights">Insights &amp; physique</a></li>
+    <li><a href="#engage">Gamification &amp; notifications</a></li><li><a href="#profile">Profile &amp; account</a></li>
+  </ul>
+</div>
+
+<h2 id="auth">Auth &amp; onboarding</h2>
+<div class="board">
+
+<figure>
+  <div class="head"><b>Sign in / Sign up</b><span class="story">NWE-101 Â· 117</span></div>
+  <div class="phone">
+    <div class="ph" style="height:64px">app mark</div>
+    <div style="text-align:center;font-weight:700;font-size:15px">NutriWorkoutExpert</div>
+    <div style="text-align:center" class="mut">Track everything. Get coached by AI.</div>
+    <div class="input">Email</div>
+    <div class="input">Password</div>
+    <div class="btn">Sign in</div>
+    <div style="text-align:center;color:var(--accent)">Forgot password? <span class="n">1</span></div>
+    <div style="text-align:center" class="mut">Don't have an account? <span style="color:var(--accent)">Sign up</span></div>
+    <div class="tabs" style="border:0"></div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>NWE-117: opens the email-reset flow; the emailed deep link lands on a "set new password" screen.</li>
+  </ol></figcaption>
+</figure>
+
+<figure>
+  <div class="head"><b>Onboarding â€” body stats</b><span class="story">NWE-104</span></div>
+  <div class="phone">
+    <div class="row" style="justify-content:center;gap:5px"><i class="check on"></i><i class="check"></i><i class="check"></i><i class="check"></i><i class="check"></i></div>
+    <div style="font-size:17px;font-weight:700;margin-top:10px">About you</div>
+    <div class="mut">Used only to compute your daily targets.</div>
+    <div class="sect">Sex</div>
+    <div class="row"><span class="chip on">Male</span><span class="chip">Female</span></div>
+    <div class="sect">Birth year</div><div class="input">1994</div>
+    <div class="sect">Height</div><div class="input">178 cm</div>
+    <div style="margin-top:auto"></div>
+    <div class="btn">Next</div>
+    <div style="text-align:center" class="mut">Skip for now <span class="n">1</span></div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>Skippable at every step; re-runnable from Profile ("Redo setup"). One question per page, progress dots on top.</li>
+  </ol></figcaption>
+</figure>
+
+<figure>
+  <div class="head"><b>Onboarding â€” your targets</b><span class="story">NWE-104</span></div>
+  <div class="phone">
+    <div class="row" style="justify-content:center;gap:5px"><i class="check on"></i><i class="check on"></i><i class="check on"></i><i class="check on"></i><i class="check on"></i></div>
+    <div style="font-size:17px;font-weight:700;margin-top:8px">Here's your daily picture</div>
+    <div class="row" style="justify-content:center;margin:8px 0"><div class="rings"><div class="hole"><b>2 150</b>kcal/day</div></div></div>
+    <div class="card">
+      <div class="lrow"><span style="color:var(--red)">â— Protein</span><b>140 g</b></div>
+      <div class="lrow"><span style="color:var(--amber)">â— Carbs</span><b>210 g</b></div>
+      <div class="lrow"><span style="color:var(--blue)">â— Fat</span><b>62 g</b></div>
+    </div>
+    <div class="mut" style="text-align:center">Mifflin-St Jeor Â· adjusts as you log <span class="n">1</span></div>
+    <div style="margin-top:auto"></div>
+    <div class="btn">Start tracking</div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>Static ring preview is fine pre-NWE-406; swap in the real component once it exists.</li>
+  </ol></figcaption>
+</figure>
+</div>
+
+<h2 id="dash">Dashboard â€” Today</h2>
+<div class="board">
+<figure>
+  <div class="head"><b>Today tab</b><span class="story">NWE-406 Â· 203 Â· 605 Â· 602 Â· 401</span></div>
+  <div class="phone">
+    <div class="row sp"><div><b style="font-size:15px">Hi Alex ðŸ‘‹</b><div class="mut">Tuesday, July 7</div></div><span class="chip">ðŸ”¥ 12 <span class="n">1</span></span></div>
+    <div class="row" style="gap:12px;margin:4px 0">
+      <div class="rings"><div class="hole"><b>1 430</b>/ 2 150</div></div>
+      <div class="grow">
+        <div class="lrow"><span style="color:var(--red)">â— P</span><span>92 / 140 g</span></div>
+        <div class="lrow"><span style="color:var(--amber)">â— C</span><span>164 / 210 g <span class="n">2</span></span></div>
+        <div class="lrow"><span style="color:var(--blue)">â— F</span><span>40 / 62 g</span></div>
+      </div>
+    </div>
+    <div class="card"><div class="row sp"><span>ðŸ’§ 1 250 / 2 000 ml</span><span class="row"><span class="chip">+250</span><span class="chip">+500</span></span></div>
+      <div class="wbar"><div style="width:62%;background:var(--blue)"></div></div>
+      <div class="mut" style="font-size:10px">undo last</div></div>
+    <div class="card"><div class="sect" style="margin:0">Today's quests <span class="n">3</span></div>
+      <div class="row"><i class="check on"></i><span>Log a meal</span></div>
+      <div class="row"><i class="check on"></i><span>Close your protein ring</span></div>
+      <div class="row"><i class="check"></i><span class="mut">Hit your water target</span></div></div>
+    <div class="card"><div class="row sp"><span><b>72.4 kg</b> <span class="mut">â†’ 70 kg</span></span><span class="row"><span class="chip on">30d</span><span class="chip">90d</span></span></div>
+      <div class="spark"></div></div>
+    <div class="card"><div class="row sp"><span>ðŸ‹ï¸ Push Day A</span><span class="mut">8 sets Â· 45 min</span></div></div>
+    <div class="tabs"><span class="on">Today</span><span>Food</span><span>Workouts</span><span>Insights</span><span>Profile</span></div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>Streak flame (NWE-602); tap â†’ sheet with logging streak, perfect-day streak, longest.</li>
+    <li>Rings ordered by gram target â€” largest outermost. Overshoot = overlapping lap marker, not just a full ring.</li>
+    <li>Quests auto-complete from real logs (NWE-605) â€” there is no manual check-off. All done â†’ widget collapses to "Perfect day âœ¨".</li>
+  </ol></figcaption>
+</figure>
+</div>
+
+<h2 id="food">Food tab</h2>
+<div class="board">
+<figure>
+  <div class="head"><b>Food â€” browse / day log</b><span class="story">NWE-201 Â· 202 Â· 206</span></div>
+  <div class="phone">
+    <div class="row"><div class="input grow">Search foodsâ€¦</div><div class="btn" style="padding:7px 10px">ðŸ“· <span class="n">1</span></div></div>
+    <div class="row" style="justify-content:center;gap:14px"><span class="mut">â€¹</span><span class="chip">Today â–¾ <span class="n">2</span></span><span class="mut">â€º</span></div>
+    <div class="sect">â˜… Favorites</div>
+    <div class="row"><span class="chip">Greek yogurt Â· 180</span><span class="chip">Oats Â· 230</span></div>
+    <div class="sect">My recipes</div>
+    <div class="row"><span class="chip">Breakfast shake Â· 410</span></div>
+    <div class="sect">Recent</div>
+    <div class="lrow"><span>Chicken breast <span class="mut">Â· 150 g</span></span><span class="row"><span class="mut">248</span><span>â˜†</span></span></div>
+    <div class="sect">Breakfast â€” 512 kcal</div>
+    <div class="lrow"><span class="row"><i class="ph" style="width:22px;height:22px;border-radius:6px">ðŸ“·</i> Oats + banana</span><span class="mut">340</span></div>
+    <div class="lrow"><span>Greek yogurt</span><span class="mut">172</span></div>
+    <div class="sect">Lunch â€” 618 kcal</div>
+    <div class="lrow"><span>Chicken + rice <span class="est">AI</span></span><span class="mut">618 <span class="n">3</span></span></div>
+    <div class="card" style="flex-direction:row;justify-content:space-between"><b>1 430 kcal</b><span class="mut">P 92 Â· C 164 Â· F 40</span></div>
+    <div class="tabs"><span>Today</span><span class="on">Food</span><span>Workouts</span><span>Insights</span><span>Profile</span></div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>Snap-to-log entry (NWE-508). Search results replace the browse sections while typing (â‰¥3 chars, 500 ms debounce).</li>
+    <li>Date bar (NWE-206): amber-tinted when viewing a past day; future disabled; all writes follow the selected date.</li>
+    <li>Tap row â†’ edit panel (NWE-205); long-press â†’ delete confirm. AI-sourced entries keep their ingredient breakdown editable.</li>
+  </ol></figcaption>
+</figure>
+
+<figure>
+  <div class="head"><b>Add / edit panel (sheet)</b><span class="story">NWE-205 Â· 204</span></div>
+  <div class="phone short">
+    <div class="scrim">dimmed food tab behind</div>
+    <div class="sheet">
+      <div class="row sp"><b>Greek yogurt <span class="mut">Â· Fage</span></b><span>ðŸ“· <span class="n">1</span></span></div>
+      <div class="mut">59 kcal Â· P 10 Â· C 3.6 Â· F 0.4 (per 100 g)</div>
+      <div class="row"><span class="chip">Breakfast</span><span class="chip on">Lunch</span><span class="chip">Dinner</span><span class="chip">Snack</span></div>
+      <div class="row"><div class="input grow">Amount â€” 170 g</div><div class="btn">Add</div></div>
+      <div class="mut" style="text-align:center">Live: 100 kcal Â· P 17 Â· C 6 Â· F 0.7 <span class="n">2</span></div>
+    </div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>Camera attaches an on-device photo (NWE-204). In edit mode: title "Edit entry", Save + Delete; manual entries also expose name + macro fields.</li>
+    <li>Macros preview rescales live as quantity changes; server recomputes on save.</li>
+  </ol></figcaption>
+</figure>
+</div>
+
+<h2 id="snap">Snap-to-log (AI)</h2>
+<div class="board">
+<figure>
+  <div class="head"><b>Candidates (sheet)</b><span class="story">NWE-508</span></div>
+  <div class="phone short">
+    <div class="ph" style="height:74px">meal photo (stays on device)</div>
+    <div class="sheet" style="margin-top:8px">
+      <div class="sect" style="margin:0">What is this? <span class="n">1</span></div>
+      <div class="lrow"><span>Chicken fried rice</span><span class="row"><span class="conf">87%</span><span class="mut">~640</span></span></div>
+      <div class="lrow"><span>Chicken biryani</span><span class="row"><span class="conf">61%</span><span class="mut">~710</span></span></div>
+      <div class="lrow"><span>Pork fried rice</span><span class="row"><span class="conf">44%</span><span class="mut">~660</span></span></div>
+      <div class="lrow"><span class="mut">None of these â†’ search / manual</span><span></span></div>
+    </div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>Up to 5 candidates from Gemini vision, strict Zod-validated. Photo is processed ephemerally â€” never stored server-side.</li>
+  </ol></figcaption>
+</figure>
+
+<figure>
+  <div class="head"><b>Ingredient editor</b><span class="story">NWE-508</span></div>
+  <div class="phone">
+    <div class="row sp"><b>Chicken fried rice</b><span class="mut">âœ•</span></div>
+    <div class="mut">Portions are estimates â€” tap to adjust. <span class="n">1</span></div>
+    <div class="lrow"><span>Cooked rice</span><span class="row"><span class="chip">âˆ’ 220 g +</span><span class="mut">286</span></span></div>
+    <div class="lrow"><span>Chicken breast</span><span class="row"><span class="chip">âˆ’ 120 g +</span><span class="mut">198</span></span></div>
+    <div class="lrow"><span>Vegetable oil</span><span class="row"><span class="chip">âˆ’ 10 g +</span><span class="mut">88</span></span></div>
+    <div class="lrow"><span>House sauce <span class="est">estimated</span> <span class="n">2</span></span><span class="row"><span class="chip">âˆ’ 30 g +</span><span class="mut">68</span></span></div>
+    <div style="color:var(--accent)">+ add ingredient</div>
+    <div class="card" style="flex-direction:row;justify-content:space-between"><b>640 kcal</b><span class="mut">P 46 Â· C 74 Â· F 18</span></div>
+    <div class="row"><span class="chip">Breakfast</span><span class="chip on">Lunch</span><span class="chip">Dinner</span><span class="chip">Snack</span></div>
+    <div style="margin-top:auto"></div>
+    <div class="btn">Log meal</div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>Everything editable: quantities, add/remove/rename. Resolved via USDA (generic) / Open Food Facts (packaged).</li>
+    <li>Amber "estimated" badge = resolver fell back to the AI's own numbers for this ingredient.</li>
+  </ol></figcaption>
+</figure>
+</div>
+
+<h2 id="workouts">Workouts</h2>
+<div class="board">
+<figure>
+  <div class="head"><b>Workouts â€” Routines</b><span class="story">NWE-302 Â· 509</span></div>
+  <div class="phone">
+    <div class="seg"><div class="on">Routines</div><div>History</div></div>
+    <div class="card" style="border:1.5px dashed var(--accent);background:var(--scr)">
+      <b style="color:var(--accent)">âœ¨ Generate my program <span class="n">1</span></b>
+      <span class="mut">Your AI training coach builds it around your goal &amp; equipment.</span></div>
+    <div class="card"><div class="row sp"><b>Push Day A</b><div class="btn" style="padding:5px 12px">Start</div></div>
+      <span class="mut">6 exercises Â· ~50 min Â· last done 2 d ago</span></div>
+    <div class="card"><div class="row sp"><b>Pull Day A</b><div class="btn" style="padding:5px 12px">Start</div></div>
+      <span class="mut">5 exercises Â· ~45 min Â· last done 4 d ago</span></div>
+    <div class="ph" style="height:40px">+ New routine</div>
+    <div class="tabs"><span>Today</span><span>Food</span><span class="on">Workouts</span><span>Insights</span><span>Profile</span></div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>Entry to the NWE-509 wizard. History segment lists session cards (tap = edit, NWE-305; long-press = delete).</li>
+  </ol></figcaption>
+</figure>
+
+<figure>
+  <div class="head"><b>Session form</b><span class="story">NWE-302 Â· 304 Â· 305</span></div>
+  <div class="phone">
+    <div class="input">Push Day A</div>
+    <div class="input">Duration (min)</div>
+    <div class="sect">Sets</div>
+    <div class="row"><div class="input grow">Bench Press <span class="n">1</span></div><div class="input" style="width:44px">8</div><div class="input" style="width:52px">60 kg</div></div>
+    <div class="row"><div class="input grow">Bench Press</div><div class="input" style="width:44px;color:var(--scr-muted)">8 <span class="n">2</span></div><div class="input" style="width:52px;color:var(--scr-muted)">60</div></div>
+    <div class="row"><div class="input grow">Running ðŸƒ</div><div class="input" style="width:56px">5.2 km</div><div class="input" style="width:52px">28 m</div></div>
+    <div class="mut" style="text-align:right">pace 5:23 /km <span class="n">3</span></div>
+    <div style="color:var(--accent)">+ Add set</div>
+    <div class="input">Notes (optional)</div>
+    <div style="margin-top:auto"></div>
+    <div class="btn">Save workout</div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>Exercise field opens the picker sheet (NWE-301): search â†’ recently used â†’ muscle-group sections â†’ "+ Create 'â€¦'".</li>
+    <li>Greyed values = placeholders from last session (routine prefill, NWE-302).</li>
+    <li>Cardio exercises swap reps/kg for distance/duration; pace computed live (NWE-304).</li>
+  </ol></figcaption>
+</figure>
+
+<figure>
+  <div class="head"><b>Exercise detail</b><span class="story">NWE-303</span></div>
+  <div class="phone">
+    <div class="row sp"><b>Bench Press</b><span class="chip">chest</span></div>
+    <div class="row"><span class="chip on">30d</span><span class="chip">90d</span><span class="chip">all</span></div>
+    <div class="sect">Best set (est. 1RM)</div>
+    <div class="spark"></div>
+    <div class="sect">Volume / session</div>
+    <div class="cols"><i style="height:40%"></i><i style="height:55%"></i><i style="height:48%"></i><i style="height:70%"></i><i style="height:64%"></i><i style="height:82%;background:var(--accent)"></i></div>
+    <div class="sect">History</div>
+    <div class="lrow"><span>Jul 5</span><span class="mut">3Ã—8 @ 60 kg</span></div>
+    <div class="lrow"><span>Jul 2</span><span class="mut">3Ã—8 @ 57.5 kg</span></div>
+    <div class="lrow"><span>Jun 29</span><span class="mut">3Ã—7 @ 57.5 kg</span></div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>Empty state: "Log this exercise a few times to see progress." Chart lib decision shared with 401/407.</li>
+  </ol></figcaption>
+</figure>
+</div>
+
+<h2 id="coach">AI coaches</h2>
+<div class="board">
+<figure>
+  <div class="head"><b>Program wizard</b><span class="story">NWE-509</span></div>
+  <div class="phone">
+    <div class="row" style="justify-content:center;gap:5px"><i class="check on"></i><i class="check on"></i><i class="check"></i><i class="check"></i><i class="check"></i></div>
+    <div style="font-size:17px;font-weight:700;margin-top:10px">How many days a week?</div>
+    <div class="mut">Be honest â€” consistency beats ambition.</div>
+    <div class="row" style="flex-wrap:wrap"><span class="chip">2</span><span class="chip">3</span><span class="chip on">4</span><span class="chip">5</span><span class="chip">6</span></div>
+    <div style="margin-top:auto"></div>
+    <div class="btn">Next</div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>Pages: goal â†’ experience â†’ days/week â†’ equipment (multi-select) â†’ injuries (free text, optional). Same visual language as onboarding.</li>
+  </ol></figcaption>
+</figure>
+
+<figure>
+  <div class="head"><b>Program preview + diff</b><span class="story">NWE-509 Â· 510</span></div>
+  <div class="phone">
+    <div style="font-size:15px;font-weight:700">Your 4-day program</div>
+    <div class="card"><b>Day 1 â€” Push</b>
+      <div class="lrow"><span>Bench Press</span><span class="mut">4 Ã— 6â€“8</span></div>
+      <div class="lrow"><span class="diff-del">Overhead Press 3Ã—8 <span class="n">1</span></span><span></span></div>
+      <div class="lrow"><span class="diff-add">Dumbbell Shoulder Press 3Ã—10</span><span></span></div>
+      <div class="lrow"><span>Lateral Raise</span><span class="mut">3 Ã— 12</span></div>
+      <div class="mut" style="font-size:10px">why: shoulder-friendly pressing angle</div></div>
+    <div class="card"><b>Day 2 â€” Pull</b><div class="lrow"><span>Deadlift</span><span class="mut">3 Ã— 5</span></div><div class="lrow"><span>Lat Pulldown</span><span class="mut">3 Ã— 10</span></div></div>
+    <div style="margin-top:auto"></div>
+    <div class="btn">Save program</div>
+    <div class="row"><div class="btn-ghost grow">Adjustâ€¦ <span class="n">2</span></div><div class="btn-ghost grow">Regenerate</div></div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>Diff visual (green add / red strike remove) â€” same component renders adaptive-training proposals (NWE-510: Apply / Dismiss, dismissal snoozes the detector 2 weeks).</li>
+    <li>Free-text adjust ("less shoulder work", "45 min max") regenerates as an approvable diff â€” never silently.</li>
+  </ol></figcaption>
+</figure>
+</div>
+
+<h2 id="analytics">Analytics</h2>
+<div class="board">
+<figure>
+  <div class="head"><b>Food analytics</b><span class="story">NWE-407</span></div>
+  <div class="phone">
+    <div class="row"><span class="chip on">7d</span><span class="chip">30d</span></div>
+    <div class="sect">Adherence</div>
+    <div class="heat">
+      <i class="g2"></i><i class="g3"></i><i class="g1"></i><i class="over"></i><i class="g2"></i><i></i><i class="g3"></i>
+      <i class="g3"></i><i class="g2"></i><i class="g2"></i><i class="g1"></i><i class="g3"></i><i class="g2"></i><i></i>
+      <i class="g1"></i><i class="g3"></i><i class="g3"></i><i class="g2"></i><i></i><i class="g2"></i><i class="g3"></i>
+    </div>
+    <div class="mut" style="font-size:10px">blank = not logged (never shown as 0 kcal) <span class="n">1</span></div>
+    <div class="sect">Daily macros</div>
+    <div class="cols"><i style="height:60%;background:var(--red)"></i><i style="height:80%;background:var(--amber)"></i><i style="height:45%;background:var(--blue)"></i><i style="height:70%;background:var(--red)"></i><i style="height:85%;background:var(--amber)"></i><i style="height:50%;background:var(--blue)"></i><i style="height:66%;background:var(--red)"></i></div>
+    <div class="sect">Avg day</div>
+    <div class="card" style="flex-direction:row;justify-content:space-between"><span>1 980 / 2 150 kcal</span><span class="mut">P 128 Â· C 190 Â· F 58</span></div>
+    <div class="sect">Top foods</div>
+    <div class="lrow"><span>Chicken breast</span><span class="mut">9Ã— Â· 2 230 kcal</span></div>
+    <div class="lrow"><span>Oats</span><span class="mut">7Ã— Â· 1 610 kcal</span></div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>Empty â‰  zero is a hard rule across all analytics. Entry: chart icon in the Food tab header.</li>
+  </ol></figcaption>
+</figure>
+
+<figure>
+  <div class="head"><b>Gym analytics</b><span class="story">NWE-408</span></div>
+  <div class="phone">
+    <div class="row"><span class="chip on">30d</span><span class="chip">90d</span></div>
+    <div class="sect">Weekly volume by muscle group</div>
+    <div class="cols"><i style="height:60%;background:var(--accent)"></i><i style="height:75%;background:var(--accent)"></i><i style="height:52%;background:var(--accent)"></i><i style="height:88%;background:var(--accent)"></i></div>
+    <div class="sect">Consistency</div>
+    <div class="card" style="flex-direction:row;justify-content:space-between"><span>3.6 / 4 sessionsÂ·wk</span><span class="mut">streak 5 wks</span></div>
+    <div class="sect">Recent PRs ðŸŽ‰</div>
+    <div class="lrow"><span>Bench Press</span><span class="mut">e1RM 76 kg Â· Jul 5</span></div>
+    <div class="lrow"><span>Squat</span><span class="mut">e1RM 110 kg Â· Jul 1</span></div>
+    <div class="sect">Cardio</div>
+    <div class="spark"></div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>PR feed uses the same shared e1RM math as NWE-303/510. Entry: chart icon in the Workouts header.</li>
+  </ol></figcaption>
+</figure>
+
+<figure>
+  <div class="head"><b>Goal analytics</b><span class="story">NWE-409</span></div>
+  <div class="phone">
+    <div class="sect">Projection</div>
+    <div class="spark"></div>
+    <div class="mut">At your current pace: <b style="color:var(--scr-ink)">~ Oct 12</b>. Estimates change as you log. <span class="n">1</span></div>
+    <div class="sect">Pace</div>
+    <div class="card">
+      <div class="row sp"><span class="mut">Planned</span><div class="wbar grow" style="margin-left:8px"><div style="width:70%;background:var(--scr-line)"></div></div><span>âˆ’0.50 kg/wk</span></div>
+      <div class="row sp"><span class="mut">Actual</span><div class="wbar grow" style="margin-left:8px"><div style="width:55%;background:var(--accent)"></div></div><span>âˆ’0.38 kg/wk</span></div>
+    </div>
+    <div class="sect">Adherence â†” progress</div>
+    <div class="spark"></div>
+    <div class="mut" style="font-size:10px">weeks tinted by target adherence under the weight line</div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>Pure tested math, labeled as an estimate â€” never AI-generated numbers. Entry: "View progress â†’" on the Profile goal card.</li>
+  </ol></figcaption>
+</figure>
+</div>
+
+<h2 id="insights">Insights &amp; physique</h2>
+<div class="board">
+<figure>
+  <div class="head"><b>Insights â€” council plan</b><span class="story">NWE-503 Â· 511</span></div>
+  <div class="phone">
+    <div style="font-size:15px;font-weight:700">This week <span class="mut" style="font-weight:400">Â· Jun 30 â€“ Jul 6</span></div>
+    <div class="card"><b>ðŸŽ¯ Goal coach</b>
+      <span>Down 0.4 kg â€” on pace. One suggestion:</span>
+      <div class="row"><span class="chip">2 150 â†’ 2 050 kcal</span><span class="chip on">Apply</span><span class="chip">Dismiss</span><span class="n">1</span></div></div>
+    <div class="card"><b>ðŸ¥— Nutrition coach</b>
+      <span>Protein dipped on weekends (âˆ’32 g avg). Two easy swaps: greek yogurt after dinner; keep Sunday's shake.</span></div>
+    <div class="card"><b>ðŸ‹ï¸ Training coach</b>
+      <span>4/4 sessions done. Bench stalling â€” suggestion waiting in Workouts. <span class="n">2</span></span></div>
+    <div class="card" style="background:var(--scr);border:1px solid var(--scr-line)"><span class="mut">Wed Â· Nutrition coach â€” 3 days without logs. No stress, today's a clean slate. <span class="n">3</span></span></div>
+    <div class="sect">Physique compare</div>
+    <div class="card" style="flex-direction:row;justify-content:space-between"><span>ðŸ“· Compare progress photos</span><span class="mut">â€º</span></div>
+    <div class="sect">Past reviews</div>
+    <div class="lrow"><span>Jun 23 â€“ 29</span><span class="mut">â–¾</span></div>
+    <div class="tabs"><span>Today</span><span>Food</span><span>Workouts</span><span class="on">Insights</span><span>Profile</span></div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>Numeric/program proposals ALWAYS render as approve/dismiss chips â€” never auto-applied. Respects targets_locked.</li>
+    <li>Cross-link to the NWE-510 diff screen in Workouts.</li>
+    <li>Between-week check-in card (deterministic detectors, gentle copy). Pre-council (M5), this screen shows the plain weekly review from NWE-502: summary Â¶ + 2â€“3 recommendations + encouragement; "Generate now" button when this week's is missing.</li>
+  </ol></figcaption>
+</figure>
+
+<figure>
+  <div class="head"><b>Physique compare</b><span class="story">NWE-507</span></div>
+  <div class="phone">
+    <div class="row"><div class="ph grow" style="height:130px">Previous<br>Mar 2 â–¾</div><div class="ph grow" style="height:130px">Current<br>Jul 6 â–¾</div></div>
+    <div class="mut" style="text-align:center">Analyzed in the moment. Never stored. <span class="n">1</span></div>
+    <div class="btn">Compare</div>
+    <div class="card"><b>Your coach's take</b>
+      <span>Visible change in shoulder definition; posture more upright. Paired with âˆ’4.1 kg and +18% pressing volume, that's steady, real progress. Two ideas going forwardâ€¦</span>
+      <span class="mut" style="font-size:10px">delete feedback</span></div>
+    <div class="sect" style="margin-top:8px">First use â€” consent sheet <span class="n">2</span></div>
+    <div class="sheet" style="margin-top:2px">
+      <b>Before we compare</b>
+      <span class="mut">Photos are never stored by us â€” they leave your device only for the moment of analysis, sent to Google's Gemini API. On the free tier, Google may process them to improve its services.</span>
+      <div class="btn">I understand â€” continue</div>
+      <div style="text-align:center" class="mut">Not now</div>
+    </div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>The no-storage promise is repeated on the screen itself â€” headline feature.</li>
+    <li>Consent recorded as a timestamp; revocable in Profile; no analysis without it. Tone: encouraging, body-neutral, no medical claims.</li>
+  </ol></figcaption>
+</figure>
+</div>
+
+<h2 id="engage">Gamification &amp; notifications</h2>
+<div class="board">
+<figure>
+  <div class="head"><b>Badges</b><span class="story">NWE-604</span></div>
+  <div class="phone">
+    <div style="font-size:15px;font-weight:700">Badges <span class="mut" style="font-weight:400">Â· 6 of 15</span></div>
+    <div class="grid3">
+      <div class="badge">ðŸ¥‡<b>First log</b><span class="mut">May 12</span></div>
+      <div class="badge">ðŸ”¥<b>7-day streak</b><span class="mut">May 19</span></div>
+      <div class="badge">ðŸ‹ï¸<b>10 workouts</b><span class="mut">Jun 2</span></div>
+      <div class="badge">ðŸ“¸<b>Snap chef</b><span class="mut">Jun 10</span></div>
+      <div class="badge">ðŸ’§<b>Hydration wk</b><span class="mut">Jun 15</span></div>
+      <div class="badge">ðŸ’ª<b>First PR</b><span class="mut">Jul 5</span></div>
+      <div class="badge lock">ðŸŒŠ<b>30-day streak</b><span class="mut">Log 30 days in a row <span class="n">1</span></span></div>
+      <div class="badge lock">ðŸŽ¯<b>Halfway</b><span class="mut">50% to goal weight</span></div>
+      <div class="badge lock">ðŸ†<b>50 workouts</b><span class="mut">Keep lifting</span></div>
+    </div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>Locked = greyed with an encouraging "how to earn" hint â€” never shame framing. Unlock = full-screen celebration (NWE-606) + dashboard banner until seen.</li>
+  </ol></figcaption>
+</figure>
+
+<figure>
+  <div class="head"><b>Notification settings</b><span class="story">NWE-607 Â· 601</span></div>
+  <div class="phone">
+    <div class="lrow"><b>Notifications</b><i class="toggle on"></i></div>
+    <div class="sect">Categories</div>
+    <div class="lrow"><span>Reminders</span><i class="toggle on"></i></div>
+    <div class="lrow"><span>Weekly review</span><i class="toggle on"></i></div>
+    <div class="lrow"><span>Celebrations</span><i class="toggle"></i></div>
+    <div class="sect">Meal reminders <span class="n">1</span></div>
+    <div class="lrow"><span>Breakfast</span><span class="row"><span class="chip">08:30</span><i class="toggle on"></i></span></div>
+    <div class="lrow"><span>Lunch</span><span class="row"><span class="chip">13:00</span><i class="toggle on"></i></span></div>
+    <div class="lrow"><span>Dinner</span><span class="row"><span class="chip">19:30</span><i class="toggle"></i></span></div>
+    <div class="lrow"><span>Weigh-in</span><span class="row"><span class="chip">08:00</span><i class="toggle on"></i></span></div>
+    <div class="sect">Quiet hours</div>
+    <div class="lrow"><span>22:00 â†’ 07:00</span><span class="mut">edit</span></div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>OS permission asked in-context on FIRST enable (explainer sheet â†’ prompt), never at launch. Smart-skip: no reminder for already-logged actions (rescheduled on app foreground).</li>
+  </ol></figcaption>
+</figure>
+</div>
+
+<h2 id="profile">Profile &amp; account</h2>
+<div class="board">
+<figure>
+  <div class="head"><b>Profile</b><span class="story">NWE-404 Â· 405 Â· 117 Â· 607</span></div>
+  <div class="phone" style="min-height:640px">
+    <div class="sect">Today's weight</div>
+    <div class="row"><div class="input grow">72.4 kg</div><div class="btn" style="padding:7px 12px">Log</div></div>
+    <div class="sect">About you</div>
+    <div class="lrow"><span>Alex Â· Male Â· 1994 Â· 178 cm</span><span class="mut">edit</span></div>
+    <div class="lrow"><span>Activity: Moderate</span><span class="mut">edit</span></div>
+    <div class="sect">Goal</div>
+    <div class="lrow"><span>Lose Â· target 70 kg</span><span style="color:var(--accent)">View progress â€º</span></div>
+    <div class="card"><div class="row sp"><b>2 150 kcal Â· P140 C210 F62</b><span>ðŸ”“ <span class="n">1</span></span></div>
+      <span class="mut" style="font-size:10px">auto Â· Mifflin-St Jeor â€” recomputed on save</span></div>
+    <div class="lrow"><span>ðŸ“· Progress photos</span><span class="mut">â€º</span></div>
+    <div class="lrow"><span>ðŸ… Badges</span><span class="mut">6 â€º</span></div>
+    <div class="lrow"><span>ðŸ”” Notifications</span><span class="mut">â€º</span></div>
+    <div class="lrow"><span>ðŸ¤– AI photo analysis</span><i class="toggle on"></i></div>
+    <div class="sect">Account <span class="n">2</span></div>
+    <div class="lrow"><span>Change password</span><span class="mut">â€º</span></div>
+    <div class="lrow"><span>Export my data</span><span class="mut">â€º</span></div>
+    <div class="lrow"><span style="color:var(--red)">Delete account</span><span class="mut">â€º</span></div>
+    <div class="btn-danger">Sign out</div>
+  </div>
+  <figcaption><ol class="notes">
+    <li>NWE-404 lock toggle: locked â†’ fields editable, "custom" pill, no auto-recompute.</li>
+    <li>NWE-117: deletion within 2 taps (Apple requirement); flow = consequences screen â†’ type DELETE â†’ final confirm. Export = full JSON via share sheet.</li>
+  </ol></figcaption>
+</figure>
+</div>
+</main>
+</body>
+</html>

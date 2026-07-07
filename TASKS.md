@@ -12,7 +12,8 @@ description of how the UI should look and behave.
 
 Architecture, flows, API, data model, testing and AI rules are documented in [`docs/`](docs/)
 — stories reference them instead of restating; **update the relevant doc when a story changes
-what it describes.**
+what it describes.** Every UI story has an annotated wireframe in
+[`docs/wireframes.html`](docs/wireframes.html) (find your story ID) — build to it.
 
 Suggested model per story: **S** = Sonnet (well-specified CRUD/UI), **O** = Opus (schema design,
 architecture, AI pipeline, anything ambiguous).
