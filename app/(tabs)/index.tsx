@@ -1,76 +1,34 @@
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { sharedGreeting, todayISO } from '@shared';
 import { RefreshControl, ScrollView, StyleSheet } from 'react-native';
 
 import { useSession } from '@/components/SessionProvider';
 import { Text, View } from '@/components/Themed';
 import { Card, ProgressBar, SectionTitle } from '@/components/ui';
-import { todayISO } from '@/lib/nutrition';
-import { supabase } from '@/lib/supabase';
-import type { FoodLog, WeightLog, WorkoutSession } from '@/lib/types';
+import { WaterCard } from '@/components/WaterCard';
+import { useDayTotals, useLatestWeight, useWorkouts } from '@/lib/hooks';
 
-interface DayTotals {
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-}
+// NWE-110 cross-runtime proof (Metro half): the SAME function runs in the Deno
+// edge function `supabase/functions/proof`. Logged once at module load.
+if (__DEV__) console.log(sharedGreeting('Expo (Metro)'));
 
 export default function DashboardScreen() {
-  const { session, profile } = useSession();
-  const [totals, setTotals] = useState<DayTotals>({ calories: 0, protein: 0, carbs: 0, fat: 0 });
-  const [latestWeight, setLatestWeight] = useState<WeightLog | null>(null);
-  const [sessions, setSessions] = useState<WorkoutSession[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
+  const { profile } = useSession();
+  const today = todayISO();
 
-  const load = useCallback(async () => {
-    if (!session) return;
-    const today = todayISO();
+  const totalsQuery = useDayTotals(today);
+  const { latest: latestWeight, refetch: refetchWeight } = useLatestWeight();
+  const workoutsQuery = useWorkouts({ from: today, to: today });
 
-    const [foodRes, weightRes, workoutRes] = await Promise.all([
-      supabase
-        .from('food_logs')
-        .select('calories, protein_g, carbs_g, fat_g')
-        .eq('user_id', session.user.id)
-        .eq('logged_on', today),
-      supabase
-        .from('weight_logs')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .order('logged_on', { ascending: false })
-        .limit(1),
-      supabase
-        .from('workout_sessions')
-        .select('*, workout_sets(*)')
-        .eq('user_id', session.user.id)
-        .eq('logged_on', today),
-    ]);
+  const totals = totalsQuery.data ?? { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
+  const sessions = workoutsQuery.data ?? [];
 
-    const logs = (foodRes.data ?? []) as Pick<
-      FoodLog,
-      'calories' | 'protein_g' | 'carbs_g' | 'fat_g'
-    >[];
-    setTotals({
-      calories: logs.reduce((s, l) => s + l.calories, 0),
-      protein: logs.reduce((s, l) => s + l.protein_g, 0),
-      carbs: logs.reduce((s, l) => s + l.carbs_g, 0),
-      fat: logs.reduce((s, l) => s + l.fat_g, 0),
-    });
-    setLatestWeight((weightRes.data?.[0] as WeightLog) ?? null);
-    setSessions((workoutRes.data ?? []) as WorkoutSession[]);
-  }, [session]);
-
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
-  );
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
+  const onRefresh = () => {
+    totalsQuery.refetch();
+    refetchWeight();
+    workoutsQuery.refetch();
   };
+  const refreshing =
+    totalsQuery.isRefetching || workoutsQuery.isRefetching;
 
   const calorieTarget = profile?.calorie_target ?? null;
   const name = profile?.display_name ?? 'there';
@@ -112,23 +70,25 @@ export default function DashboardScreen() {
       <Card>
         <MacroRow
           label="Protein"
-          value={totals.protein}
+          value={totals.protein_g}
           target={profile?.protein_target_g ?? null}
           color="#dc2626"
         />
         <MacroRow
           label="Carbs"
-          value={totals.carbs}
+          value={totals.carbs_g}
           target={profile?.carbs_target_g ?? null}
           color="#f59e0b"
         />
         <MacroRow
           label="Fat"
-          value={totals.fat}
+          value={totals.fat_g}
           target={profile?.fat_target_g ?? null}
           color="#3b82f6"
         />
       </Card>
+
+      <WaterCard targetMl={profile?.water_target_ml ?? 2000} />
 
       <SectionTitle>Weight</SectionTitle>
       <Card>

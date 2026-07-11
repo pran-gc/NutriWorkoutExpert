@@ -1,0 +1,11 @@
+# Maestro E2E — launch → sign-in screen visible (NWE-111 AC#3).
+# Mac-only: runs on the iOS simulator via `maestro test`.
+#   maestro test .maestro/sign-in.yaml
+# Extended in later stories (NWE-114: sign in → log a food → dashboard totals).
+appId: host.exp.Exponent # dev-build appId is set in NWE-801 branding; placeholder for the Expo dev client
+---
+- launchApp
+- assertVisible: 'NutriWorkoutExpert'
+- assertVisible: 'Email'
+- assertVisible: 'Password'
+- assertVisible: 'Sign in'

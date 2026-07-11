@@ -20,11 +20,14 @@ story-by-story to agent sessions.
 | How to test / TDD rules | [docs/testing.md](docs/testing.md) |
 | AI pipeline + privacy constraints | [docs/ai.md](docs/ai.md) |
 
-⚠️ **Current vs target state.** The codebase is currently the pre-M1 scaffold: screens query
-Supabase directly, there is no API/tests/`packages/shared` yet. Stories NWE-110…116 build the
-target architecture. Until NWE-114 lands, the direct-query pattern in existing screens is
-*tolerated legacy*; **new work follows the target rules** and M2+ stories must not start
-before M1. If any doc conflicts with TASKS.md, **TASKS.md wins**.
+✅ **M1 architecture is live.** The app talks only to the **Hono API** (`supabase/functions/api/`)
+via the typed client in `lib/api.ts` + TanStack Query hooks (`lib/hooks.ts`); `supabase-js` in
+the app is auth-only, enforced by CI (`npm run check:no-supabase-from`). Cross-runtime domain
+code lives in `packages/shared`. The schema is `supabase/migrations/0001_init.sql`; the local
+stack runs via `supabase start`. Tests: Vitest (shared) + jest-expo (app) + Deno integration
+(API) + Maestro (E2E) — see the README "How we test". `supabase/schema.sql` is kept as a
+design reference only; the migration is authoritative. If any doc conflicts with TASKS.md,
+**TASKS.md wins**. *(NWE-116 does the full collaborative docs pass with the user.)*
 
 ## Rules for agent sessions
 

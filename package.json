@@ -2,12 +2,20 @@
   "name": "nutriworkoutexpert",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "workspaces": [
+    "packages/*"
+  ],
   "dependencies": {
+    "@nwe/shared": "*",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/datetimepicker": "9.1.0",
     "@supabase/supabase-js": "^2.109.0",
+    "@tanstack/react-query": "^5.101.2",
     "expo": "~57.0.2",
     "expo-constants": "~57.0.3",
     "expo-font": "~57.0.0",
+    "expo-haptics": "~57.0.0",
+    "expo-image-picker": "~57.0.2",
     "expo-linking": "~57.0.1",
     "expo-router": "~57.0.3",
     "expo-secure-store": "~57.0.0",
@@ -15,6 +23,7 @@
     "expo-status-bar": "~57.0.0",
     "expo-symbols": "~57.0.0",
     "expo-web-browser": "~57.0.0",
+    "hono": "^4.12.28",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.0",
@@ -22,17 +31,46 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",
     "react-native-web": "~0.21.0",
-    "react-native-worklets": "0.10.0"
+    "react-native-worklets": "0.10.0",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@testing-library/react-native": "^14.0.1",
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.2.2",
+    "jest": "^29.7.0",
+    "jest-expo": "^57.0.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "test:shared": "npm test -w @nwe/shared",
+    "test:api": "deno test --config supabase/functions/deno.json --allow-env --allow-net supabase/functions/api/",
+    "check:no-supabase-from": "bash scripts/check-no-supabase-from.sh"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
+    ],
+    "moduleNameMapper": {
+      "^@shared$": "<rootDir>/packages/shared/src/index.ts",
+      "^@shared/(.*)$": "<rootDir>/packages/shared/src/$1",
+      "^@/(.*)$": "<rootDir>/$1"
+    },
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|@nwe/shared))"
+    ],
+    "testPathIgnorePatterns": [
+      "<rootDir>/node_modules/",
+      "<rootDir>/packages/",
+      "<rootDir>/supabase/"
+    ]
   },
   "private": true
 }

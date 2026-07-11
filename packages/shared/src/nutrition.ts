@@ -1,4 +1,7 @@
-import type { ActivityLevel, GoalType, Profile, Sex } from '@/lib/types';
+// Pure nutrition math — BMR / TDEE / daily targets. Runtime-agnostic; consumed
+// by the app (Profile/onboarding) and the API (PATCH /me). (NWE-112; moved from
+// lib/nutrition.ts. Test suite in nutrition.test.ts covers every branch.)
+import type { ActivityLevel, GoalType, Profile, Sex } from './types.ts';
 
 const ACTIVITY_MULTIPLIERS: Record<ActivityLevel, number> = {
   sedentary: 1.2,
@@ -8,7 +11,7 @@ const ACTIVITY_MULTIPLIERS: Record<ActivityLevel, number> = {
   very_active: 1.9,
 };
 
-// Daily calorie adjustment per goal: ~0.5 kg/week of body weight change
+// Daily calorie adjustment per goal: ~0.5 kg/week of body weight change.
 const GOAL_ADJUSTMENTS: Record<GoalType, number> = {
   lose: -500,
   maintain: 0,
@@ -46,8 +49,12 @@ export interface MacroTargets {
   fatG: number;
 }
 
+/** The minimum daily calorie floor we will ever recommend. */
+export const CALORIE_FLOOR = 1200;
+
 /**
  * Compute daily calorie and macro targets from profile + current weight.
+ * Returns null when required profile data is missing.
  * Protein: 1.8 g/kg (2.0 when building muscle), fat: 25% of calories, carbs: remainder.
  */
 export function computeTargets(
@@ -59,7 +66,7 @@ export function computeTargets(
   }
   const age = new Date().getFullYear() - profile.birth_year;
   const calories = Math.max(
-    1200,
+    CALORIE_FLOOR,
     Math.round(
       tdee(bmr(profile.sex, currentWeightKg, profile.height_cm, age), profile.activity_level) +
         GOAL_ADJUSTMENTS[profile.goal_type]

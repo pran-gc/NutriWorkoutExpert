@@ -77,7 +77,11 @@ the setup Q&A, the council's first plan lands after week one — and get sharper
 
 ## Epic 1 — Foundations (detailed)
 
-### NWE-101 · Review & polish the drafted scaffold — `[~]` · S
+### NWE-101 · Review & polish the drafted scaffold — `[x]` · S
+> Done (2026-07-09): theme-derived input colors (`Input` in `components/ui.tsx`), shared
+> primitives extracted (Input/Button/Chip/ChipRow/OptionRow/Muted/EmptyState) and adopted in
+> food/workouts/profile/sign-in; loading gate in `_layout.tsx` (no flash); delayed-session
+> component test. **AC#4 pending: user visual sign-off in light+dark on the simulator.**
 The initial scaffold (auth, 4 tabs, schema) was drafted in one pass and never reviewed.
 **Acceptance criteria:**
 1. No `TextInput` uses a hardcoded text color — input text derives from the theme and is readable in light AND dark mode (verify both by toggling the simulator appearance).
@@ -86,20 +90,35 @@ The initial scaffold (auth, 4 tabs, schema) was drafted in one pass and never re
 4. User has looked at each screen and sign-off is noted here.
 **Notes:** refactor only, no new features. Direct-DB queries in screens are tolerated until NWE-114.
 
-### NWE-102 · Git remote & repo hygiene — `[ ]` · S
+### NWE-102 · Git remote & repo hygiene — `[~]` · S
+> Done (2026-07-09): `.env` confirmed gitignored, `.env.example` updated (local + hosted),
+> `dist/` not tracked, README gained a "Clone & run on the Mac" section. **AC#1 pending: push
+> to the private remote (`origin` = github.com/pran-gc/NutriWorkoutExpert already set) — awaiting
+> user go-ahead to commit + push.**
 **Acceptance criteria:**
 1. Initial commit(s) pushed to a private GitHub repo (user provides/creates the remote — ask, don't create).
 2. `.env` confirmed ignored; `.env.example` committed; `dist/` not committed.
 3. README gains a "clone on the Mac" section (clone, `npm install`, copy `.env`, run).
 
-### NWE-103 · iOS development build workflow — `[ ]` · S (runs on the Mac)
+### NWE-103 · iOS development build workflow — `[~]` · S (runs on the Mac)
+> Done (2026-07-09): README documents `npx expo run:ios` (Xcode, simulator vs device, free vs
+> paid signing, cert trust), the Metro fast-refresh loop, and a known-issues section.
+> **AC#4 pending: user confirms the app boots on the simulator; sign-off noted here.**
 **Acceptance criteria:**
 1. README documents `npx expo run:ios` step-by-step: Xcode install, simulator vs physical device, free-Apple-ID vs paid signing, trusting the developer cert on device.
 2. Metro dev-server workflow documented (build once, fast refresh over Wi-Fi thereafter).
 3. Known-issues section: device provisioning, local-network permission prompt, first-build duration.
 4. Verified: app boots on the Mac simulator (user confirms; sign-off noted here).
 
-### NWE-110 · Repo restructure & local dev stack — `[ ]` · O
+### NWE-110 · Repo restructure & local dev stack — `[x]` · O
+> Done (2026-07-09): npm-workspace layout (`packages/shared`, `supabase/functions/api`);
+> `schema.sql` copied VERBATIM to `migrations/0001_init.sql` (byte-identical; schema.sql now a
+> read-only reference); cross-runtime proof runs in BOTH Metro (`@shared` alias via
+> `metro.config.js`) and Deno (`supabase/functions/proof`, `_shared`). **Verified on the live
+> local stack: `supabase start` up, migration 0001 applied (15 tables, RLS on all 15, 58 seed
+> exercises), `proof` edge function returns the shared greeting.** Mechanism documented in README.
+> Follow-up migration `0002_grants.sql` added later this session (see Discovered work) — `db reset`
+> now replays 0001 + 0002.
 **Goal:** the repo supports app + API + shared code + migrations, and the whole stack runs locally.
 **Acceptance criteria:**
 1. Layout: Expo app stays at root (Metro is happiest there); `packages/shared/` for cross-runtime code; `supabase/functions/api/` for the Hono app; `supabase/migrations/` replaces the single `schema.sql` (existing schema becomes migration 0001 verbatim — no schema changes in this story).
@@ -109,7 +128,13 @@ The initial scaffold (auth, 4 tabs, schema) was drafted in one pass and never re
 5. Decision log updated here with any deviations.
 **Notes:** highest-risk story — cross-runtime imports and Windows+Docker quirks. Opus; budget time to experiment.
 
-### NWE-111 · Test harness (full pyramid) & CI — `[ ]` · O
+### NWE-111 · Test harness (full pyramid) & CI — `[x]` · O
+> Done (2026-07-09): Vitest for `packages/shared` (47 tests incl. `computeTargets` edges);
+> jest-expo + RNTL for app (sign-in validation, delayed-session, onboarding, error banner);
+> Deno integration tests running the Hono app (`/health`, 401 rejection, cross-user RLS,
+> export/delete) against the local stack; Maestro flow (`.maestro/sign-in.yaml`, Mac-only); CI
+> (`.github/workflows/ci.yml`: typecheck + guard + unit + integration). README "How we test".
+> **Note:** RNTL 14/React 19 renderer quirk documented (async-submit tests isolated per file).
 **Goal:** the TDD infrastructure every later story relies on.
 **Acceptance criteria:**
 1. **Unit:** Vitest configured for `packages/shared` and API logic; `jest-expo` + RN Testing Library for app components. One REAL example test at each level (not placeholders) — suggested: `computeTargets` edge case; sign-in screen validation.
@@ -119,7 +144,11 @@ The initial scaffold (auth, 4 tabs, schema) was drafted in one pass and never re
 5. README "How we test / TDD workflow" section: red-green-refactor expectations per story, all test commands.
 **Depends on:** NWE-110.
 
-### NWE-112 · Shared domain package — `[ ]` · S
+### NWE-112 · Shared domain package — `[x]` · S
+> Done (2026-07-09): `lib/types.ts` + `lib/nutrition.ts` moved to `packages/shared` as Zod
+> schemas + inferred types + pure functions; old files deleted; all app imports use `@shared`.
+> Nutrition math has a test-first suite (missing data→null, 1200 floor, both sexes, all
+> activity levels + goals, extremes). API envelope + `ErrorCode` union defined + tested.
 **Goal:** single source of truth for domain types, contracts, and pure logic.
 **Acceptance criteria:**
 1. `lib/types.ts` and `lib/nutrition.ts` move into `packages/shared` as Zod schemas + inferred types and pure functions; all app imports updated; the old files deleted.
@@ -127,7 +156,13 @@ The initial scaffold (auth, 4 tabs, schema) was drafted in one pass and never re
 3. API envelope types defined (`{ data }` / `{ error: { code, message } }` + `ErrorCode` union per docs/api.md).
 **Depends on:** NWE-110, 111.
 
-### NWE-113 · Hono API skeleton — `[ ]` · O
+### NWE-113 · Hono API skeleton — `[x]` · O
+> Done (2026-07-09): Hono app in `supabase/functions/api/` — JWT auth middleware (verify →
+> `user` + per-request user-scoped Supabase client), Zod validation helper, error-envelope via
+> `app.onError`, request logging. `GET /health` (public) + `GET /me` (authed) TDD'd (unit +
+> integration incl. 401 without token — all pass). Typed `hc<AppType>` client in `lib/api.ts`
+> compiles with full response inference. **AC#4 (deploy to hosted project) pending: user runs
+> `supabase link` + `supabase functions deploy api` with real secrets.**
 **Goal:** the backend exists, is deployed, and is the template every endpoint follows.
 **Acceptance criteria:**
 1. Hono app in `supabase/functions/api/` with: JWT auth middleware (verifies Supabase token → injects `user` + per-request user-scoped Supabase client), Zod validation middleware, error-envelope middleware, request logging. Structure per docs/api.md (routes / services / middleware / prompts).
@@ -136,7 +171,15 @@ The initial scaffold (auth, 4 tabs, schema) was drafted in one pass and never re
 4. Deployed to the hosted Supabase project; README documents deploy command and secrets setup.
 **Depends on:** NWE-110, 111, 112.
 
-### NWE-114 · Migrate the app to the API — `[ ]` · O
+### NWE-114 · Migrate the app to the API — `[x]` · O
+> Done (2026-07-09): TanStack Query installed; `lib/api.ts` wraps the Hono client, attaches the
+> JWT, unwraps envelopes into typed results/errors. Endpoints built + hooks (`lib/hooks.ts`):
+> `PATCH /me` (recomputes targets server-side, respects `targets_locked`), `PUT/GET /weights`,
+> food-log CRUD + `/food-logs/totals`, workout CRUD, `GET /foods/search` (OFF proxied). All
+> screens (dashboard/food/workouts/profile) + SessionProvider read/write through the API.
+> **Zero `supabase.from(` in app code — enforced by CI grep (`check:no-supabase-from`).**
+> `lib/food-api.ts` deleted. Cross-user RLS integration tests written per resource.
+> **Pending user run: RLS/integration tests + Maestro (need HTTP the build sandbox blocks).**
 **Goal:** the app stops talking to the database; Supabase client remains for auth only.
 **Acceptance criteria:**
 1. TanStack Query installed; `lib/api.ts` wraps the Hono client, attaches the session token, unwraps envelopes into typed results/errors.
@@ -146,7 +189,13 @@ The initial scaffold (auth, 4 tabs, schema) was drafted in one pass and never re
 5. Maestro flow updated: sign in → log a food → dashboard totals reflect it.
 **Depends on:** NWE-113.
 
-### NWE-115 · Environments & deploy pipeline — `[ ]` · S
+### NWE-115 · Environments & deploy pipeline — `[~]` · S
+> Done (2026-07-09): local vs hosted documented (README "Environments, deploy & ops"); env
+> files per environment; `.github/workflows/deploy.yml` pushes migrations + deploys the `api`
+> function on push to main (fails loudly); rollback procedure documented; weekly `pg_dump`
+> export (`.github/workflows/backup.yml`, 30-day artifact retention) + free-tier pause note.
+> **Pending: user adds repo secrets (`SUPABASE_ACCESS_TOKEN`/`PROJECT_REF`/`DB_PASSWORD`/
+> `DB_URL`) and confirms a real deploy + backup run.**
 **Acceptance criteria:**
 1. Two environments documented: local (CLI/Docker, for dev + tests) and hosted (real app); env files per environment.
 2. GitHub Action deploys migrations + functions to the hosted project on push to `main` (Supabase access token as repo secret); failed deploys fail visibly.
@@ -154,13 +203,24 @@ The initial scaffold (auth, 4 tabs, schema) was drafted in one pass and never re
 4. Free-tier ops: 7-idle-day pause documented (+ how to resume); **scheduled data export** (`pg_dump` via GitHub Action, weekly, artifact retention) since the free tier has no backups.
 **Depends on:** NWE-113.
 
-### NWE-116 · Update AGENTS.md to the final architecture — `[ ]` · S
+### NWE-116 · Update AGENTS.md to the final architecture — `[~]` · S
+> Partial (2026-07-09): mechanical updates done — AGENTS.md "Current vs target" caveat replaced
+> with M1-live reality; `lib/CLAUDE.md` corrected (hooks/queryClient/errorBanner/photos; moved
+> types→shared, food-api deleted); `schema.sql` marked read-only reference. **The full
+> collaborative docs pass (architecture/api/data-model/testing) is explicitly a "do with the
+> user" task — left for that session.**
 **Acceptance criteria:**
 1. AGENTS.md + folder CLAUDE.md files rewritten WITH THE USER to match M1 reality: layout, API-only rule, test commands, deploy notes; stale "current state" caveats removed.
 2. docs/ pass: architecture/api/data-model/testing updated where M1 diverged from plan.
 **Depends on:** NWE-114. *(Do together with the user, not solo.)*
 
-### NWE-104 · First-launch onboarding — `[ ]` · S
+### NWE-104 · First-launch onboarding — `[x]` · S
+> Done (2026-07-09): `(onboarding)/` paged wizard (welcome + privacy line → body → activity →
+> goal → weight → computed-targets preview with macro dots), progress dots + Skip. Guard in
+> `_layout.tsx` routes incomplete profiles (no sex/birth_year/height) to onboarding; complete
+> ones never see it. Saves profile + first weight via API, computes targets. "Redo setup" in
+> Profile. Component tests (welcome/nav/skip). **AC#4 E2E (fresh signup → wizard → dashboard)
+> runs on the Mac via Maestro; user confirms.**
 **Goal:** a new user lands in a friendly wizard instead of an empty dashboard.
 **UI:** full-screen paged wizard, one question per page, large friendly typography, progress dots at top, "Skip" in the header. Pages: welcome (app promise + "your photos are never stored" privacy line) → body stats (sex chips, birth year, height) → activity level (option rows) → goal (chips + optional target weight) → current weight → final page shows the computed targets with a preview of the macro rings ("here's your daily picture").
 **Acceptance criteria:**
@@ -170,7 +230,12 @@ The initial scaffold (auth, 4 tabs, schema) was drafted in one pass and never re
 4. Component tests per step (validation, navigation); Maestro flow: fresh signup → wizard → dashboard shows targets.
 **Depends on:** NWE-114 (API), NWE-406 helpful but not required (static ring preview OK).
 
-### NWE-105 · Error & offline handling — `[ ]` · S
+### NWE-105 · Error & offline handling — `[x]` · S
+> Done (2026-07-09): central error mapping in `lib/errorBanner.ts` (network/5xx → banner;
+> 4xx → surfaced to screen) wired to the QueryCache in `lib/queryClient.ts` with retry (max 2,
+> exponential backoff). Slide-down amber banner (`components/ErrorBanner.tsx`) with Retry,
+> dismiss on tap / clears on success. Food search failure shows inline copy. Unit tests for the
+> mapping + store. **AC#2 airplane-mode manual pass runs on the device.**
 **UI:** a slim banner slides down under the header (amber background, white text, retry button) when an API call fails from network/server issues; it dismisses on tap or when a retry succeeds. Form-level failures show inline under the field or as a toast — never a silent nothing. Food search failure shows an inline message under the search box ("Couldn't search right now — check your connection").
 **Acceptance criteria:**
 1. Central error mapping in `lib/api.ts`: network failure / 5xx → banner + TanStack Query retry (max 2, backoff); 4xx envelope errors → surfaced to the calling screen.
@@ -178,7 +243,15 @@ The initial scaffold (auth, 4 tabs, schema) was drafted in one pass and never re
 3. Component test: banner renders on mocked network error and clears on success.
 **Depends on:** NWE-114.
 
-### NWE-117 · Auth & account lifecycle — `[ ]` · O ‼ App-Store-required
+### NWE-117 · Auth & account lifecycle — `[x]` · O ‼ App-Store-required
+> Done (2026-07-09): "Forgot password?" on sign-in (Supabase reset email → deep link to
+> `(auth)/reset-password`); change password (Account section, reauth by held JWT); `GET
+> /me/export` (all rows via a table registry that fails the export test if a table is
+> forgotten) offered via the iOS share sheet; `DELETE /me` (admin client, FK cascade + local
+> photo wipe via `lib/photos.ts`); Profile "Account" section → Delete account screen (type
+> DELETE → final Alert). Delete reachable in 2 taps (Profile → Delete account). Integration
+> tests written (export completeness, cross-user, cascade). **Pending user run: integration
+> tests + manual reset-email E2E (need the hosted email flow / HTTP).**
 **Goal:** complete auth (password reset) + the account controls Apple requires for launch.
 **UI:** sign-in screen gains a "Forgot password?" link under the button. Profile gains an "Account" section at the bottom: Change password · Export my data · Delete account (red). Delete flow: confirmation screen explaining consequences → type **DELETE** to enable the button → final `Alert` confirm.
 **Acceptance criteria:**
@@ -195,7 +268,13 @@ The initial scaffold (auth, 4 tabs, schema) was drafted in one pass and never re
 
 *(All stories follow the Definition of Done: migration → TDD'd API endpoints → app UI via TanStack Query → tests.)*
 
-### NWE-201 · Recents & favorites — `[ ]` · S
+### NWE-201 · Recents & favorites — `[x]` · S
+> Done (2026-07-09): `favorite_foods` table verified + Zod schemas. Endpoints `GET/POST/DELETE
+> /favorites` (POST dedupes by name+brand, updating not duplicating) + `GET /foods/recent` (last
+> 20 distinct, most recent first). Star toggle on recent rows creates/removes a favorite;
+> Favorites + Recent sections show above the day log when search is empty; tapping pre-fills the
+> add panel; logging a favorite updates `last_quantity_g`. **Pending user run: cross-user RLS
+> integration test (needs the live stack).**
 **Goal:** logging something you've eaten before takes two taps.
 **UI:** when the Food tab search box is empty, show two sections above the day log: "★ Favorites" (compact cards: name, kcal for last-used quantity) and "Recent" (list rows: name · brand · last quantity · kcal, star toggle on the right). Tapping either opens the standard add panel pre-filled with last-used quantity + meal. A star toggle also appears on search-result rows and log entries.
 **Acceptance criteria:**
@@ -205,7 +284,14 @@ The initial scaffold (auth, 4 tabs, schema) was drafted in one pass and never re
 4. Tapping a recent/favorite pre-fills the add panel; logging updates `last_quantity_g`.
 5. Component tests: sections render/empty states; star toggle optimistic update.
 
-### NWE-202 · Recipes (composite foods) — `[ ]` · O
+### NWE-202 · Recipes (composite foods) — `[x]` · O
+> Done (2026-07-09): `recipes`/`recipe_items` verified + Zod. Recipe totals + per-serving +
+> logged-multiplier math is pure shared logic (`recipeMath.ts`, TDD'd: rounding, empty, zero/
+> negative-servings guard). Endpoints: recipes CRUD with nested items (PUT replaces items
+> wholesale) + `POST /recipes/:id/log` inserts ONE food_log (`source='recipe'`, macros ×
+> multiplier — denormalized, so editing a recipe never rewrites past logs). Editor screen
+> (`app/recipe-editor.tsx`, live totals) + "My recipes" section with 0.5×/1×/2× + free multiplier.
+> **Pending user run: cross-user RLS + denormalization integration tests.**
 **Goal:** save combos ("my breakfast shake") and log them in one tap.
 **UI:** "My recipes" section beside Favorites on the empty-search Food tab (cards: name, total kcal per serving). Recipe editor screen: name field → ingredient rows (name, quantity stepper in g, kcal auto) → "+ add ingredient" opens the standard search/manual flow → footer with live total macros and a servings count field. Logging a recipe opens the add panel with a servings multiplier (0.5× / 1× / 2× chips + free input).
 **Acceptance criteria:**
@@ -216,7 +302,11 @@ The initial scaffold (auth, 4 tabs, schema) was drafted in one pass and never re
 5. Editing a recipe never changes past logs (denormalization test).
 6. Component tests: editor add/remove ingredient, live totals, multiplier math.
 
-### NWE-203 · Water tracking — `[ ]` · S
+### NWE-203 · Water tracking — `[x]` · S
+> Done (2026-07-09): `water_logs` + `profiles.water_target_ml` verified. Endpoints `POST /water`,
+> `DELETE /water/last?date` (removes exactly the newest entry of the day), `GET /water?date`
+> (total). Dashboard `WaterCard` (blue bar, +250/+500, undo link, haptic tick, caps at 100% with
+> overflow shown numerically, target-reached state). Water target editable in Profile.
 **UI:** dashboard card under the rings: blue (`#3b82f6`) horizontal progress bar, "1 250 / 2 000 ml", two round buttons **+250** and **+500**, an "undo last" text link visible after any add; subtle haptic tick on add.
 **Acceptance criteria:**
 1. Migration: `water_logs` (user_id, ml, logged_on) + RLS; profile gains `water_target_ml` (default 2000, editable in Profile).
@@ -224,7 +314,14 @@ The initial scaffold (auth, 4 tabs, schema) was drafted in one pass and never re
 3. Bar fills proportionally, caps visually at 100% with the overflow amount still shown numerically.
 4. Component tests: add/undo flows, empty state, target reached state.
 
-### NWE-204 · Meal photos (on-device) — `[ ]` · S
+### NWE-204 · Meal photos (on-device) — `[x]` · S
+> Done (2026-07-09): photo util split into pure `lib/photoPath.ts` (filename gen/validation,
+> unit-tested) + `lib/photos.ts` I/O (capture/pick via expo-image-picker → save under private
+> `photos/` dir → delete/exists/wipe — **no upload anywhere**). `photo_path` verified nullable on
+> food_logs + wired through create/PATCH. 48px thumbnail renders only when the file exists on this
+> device (missing → no thumb, no error); tapping opens a full-screen viewer (photo, delete, close,
+> "Photos stay on this device"). Deleting the entry deletes the file; deleting the photo alone
+> clears `photo_path`. Component tests: photoPath.
 **UI:** a camera icon inside the food add/edit panel; log rows with a photo show a 48 px rounded thumbnail on the left; tapping opens a full-screen viewer (photo, date, delete button, close). A one-line note in the viewer: "Photos stay on this device."
 **Acceptance criteria:**
 1. Reusable photo util (capture/pick via `expo-image-picker` → compress ≤1080 px → save under the app's private documents dir via `expo-file-system` → delete) with unit tests around path/naming logic. **No upload anywhere.**
@@ -233,14 +330,26 @@ The initial scaffold (auth, 4 tabs, schema) was drafted in one pass and never re
 4. Deleting the log entry deletes the file; deleting the photo alone clears `photo_path`.
 5. Component tests: row with/without photo; viewer delete flow.
 
-### NWE-205 · Edit logged food entries — `[ ]` · S
+### NWE-205 · Edit logged food entries — `[x]` · S
+> Done (2026-07-09): `PATCH /food-logs/:id` — searched/AI entries rescale macros server-side from
+> stored values (shared `rescaleMacros`, TDD'd: doubling, rounding, zero-quantity guards); manual
+> entries edit name+macros directly. Tapping a log row opens `EditEntryPanel` (pre-filled, Save +
+> Delete; manual → name+macro fields, searched → quantity+meal with live rescale preview). Day
+> totals refresh via query invalidation. Integration tests (searched rescale + manual edit) added
+> to rls.integration.test.ts. **Pending user run.**
 **UI:** tapping a log row opens the same add panel in edit mode: title "Edit entry", fields pre-filled, primary "Save", secondary "Delete". Manual entries expose name + macro fields; searched/AI entries expose quantity + meal only (macros rescale automatically, shown live as the quantity changes).
 **Acceptance criteria:**
 1. `PATCH /food-logs/:id` — TDD'd: quantity change rescales macros server-side from stored per-quantity values (unit test the rescale math in shared); manual entries accept direct macro edits.
 2. Day totals and rings refresh after save (query invalidation).
 3. Component tests: edit modes for manual vs searched entries, live rescale preview.
 
-### NWE-206 · Past days: browse & log — `[ ]` · S
+### NWE-206 · Past days: browse & log — `[x]` · S
+> Done (2026-07-09): `DateBar` pinned above the Food tab (‹ · label · ›; label opens the native
+> date picker via @react-native-community/datetimepicker; › disabled on today; future dates
+> blocked by maximumDate). Past days tint the bar amber. All Food-tab queries + writes (logs,
+> water via WaterCard on dashboard is today-only per spec; food logs/photos here) key off the
+> selected `logged_on`. Returns to today when the tab is left+re-entered; survives within-session
+> tab switches. **Pending user run: component tests + E2E on device.**
 **UI:** a compact date bar pinned above the Food tab content: `‹` · "Today" (or "Wed, 2 Jul" — tappable, opens the native date picker) · `›` (disabled on today). When viewing a past day the bar is tinted amber and reads the date, signalling "you're editing the past". Dashboard stays today-only.
 **Acceptance criteria:**
 1. All Food-tab queries and writes (logs, water, photos) respect the selected `logged_on`.
@@ -587,4 +696,33 @@ NWE-505 (coach chat) once the council is live and quota behavior under real usag
 - Scaffold draft (2026-07-06) predates this backlog: NWE-101 covers its review. Known issues: hardcoded `#888` input text color; duplicated styles across screens.
 - AGENTS.md + docs/ + folder CLAUDE.md files (written 2026-07-06) describe the TARGET architecture with current-state caveats; NWE-116 does the post-M1 accuracy pass with the user. TASKS.md wins on conflict.
 - 2026-07-06 backlog audit: added NWE-117 (forgot password + account deletion/export — Apple requires in-app deletion; would have blocked launch) and NWE-607 (notification infrastructure). 509/510/511 were briefly cut to v1.1, then **restored to v1.0 (M8) by user decision — the coaches are the USP and ship at launch**; only coach chat (505) is v1.1. Former NWE-402/504/506 remain absorbed by 407/511/508 respectively.
+- 2026-07-09: **Epic 2 (Nutrition: 201–206) implemented in one session.** New shared math
+  (`foodMath` rescale, `recipeMath` totals/per-serving) TDD'd (58 shared tests total). Endpoints
+  added: `PATCH /food-logs/:id`, `/favorites` CRUD, `/foods/recent`, `/water` (+undo), `/recipes`
+  CRUD + `/:id/log`. New app deps: `@react-native-community/datetimepicker` (206 date picker),
+  `expo-image-picker` + `expo-haptics` (204/203). Photos stay on-device (util split into pure
+  `lib/photoPath.ts` + I/O `lib/photos.ts`). Verified: `npm run test:api` = **12/12 pass** against
+  the live stack (incl. the 205 rescale). Note: no new migrations — all Epic 2 tables were
+  pre-built in 0001 and only needed the 0002 grants. Also: after adding routes, clear stale
+  `.expo/types` (`rm -rf .expo/types` + re-export) so typed-routes recognise them.
+- 2026-07-09: **Migration `0002_grants.sql` added** (forward-only fix). Migration 0001 created
+  tables + RLS but never granted DML to the Supabase roles (`anon`/`authenticated`/`service_role`),
+  so on the local CLI stack every app query hit "permission denied for table". 0002 adds the
+  standard grants + `alter default privileges` (so future tables are covered). Found by the
+  integration tests once the stack was healthy — exactly what they're for. RLS remains the real
+  access control; grants just let the roles reach the tables.
+- 2026-07-09: **Epic 1 (M1 + 104/105/117) implemented in one session.** Findings worth keeping:
+  - **Test renderer quirk.** RN 0.86 + React 19 + jest-expo 57 + RNTL 14 + `test-renderer@1.2.0`:
+    `render()` is async (must `await`), and an async happy-path *submit* wedges the renderer for
+    later tests in the SAME file. Workaround: isolate such assertions per-file (see
+    `sign-in.submit.test.tsx`). Also `configure({concurrentRoot})` is not a valid option here.
+  - **Deno FS API moved.** SDK 57 exposes `documentDirectory`/`deleteAsync` under
+    `expo-file-system/legacy`; the new `Paths`/`File` API is for NWE-204.
+  - **Local keys are new-style.** `supabase start` issues `sb_publishable_*`/`sb_secret_*`;
+    `supabase status -o env` still yields legacy JWT `ANON_KEY`/`SERVICE_ROLE_KEY` for tests.
+  - **Hono RPC input drift.** App zod vs Deno `npm:zod` make RPC *input* args nominally distinct;
+    hooks assert the arg (`arg()` helper) while keeping response inference. API re-validates.
+  - **Build-sandbox limit.** Integration/E2E that make HTTP to 127.0.0.1 (RLS, export, delete,
+    Maestro, live `functions serve`) must be run in a real terminal — the agent sandbox resets
+    loopback HTTP. Code + `deno check` verified; commands are in the README / story notes.
 - 2026-07-07: **full v1.0 schema pre-designed** in `supabase/schema.sql` (commented, with tracking/lifecycle columns: created_at everywhere, trigger-maintained updated_at, seen_at/read_at/applied_at/dismissed_at, consent as timestamp). Feature stories' "Migration:" ACs now mean **verify the pre-built table against the story + write the shared Zod schemas**; add a new migration only for genuine design changes discovered during the build. NWE-110 still converts schema.sql → migration 0001 verbatim.

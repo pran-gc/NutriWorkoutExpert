@@ -1,8 +1,9 @@
 import type { Session } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useState } from 'react';
 
+import { rpc, unwrap } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import type { Profile } from '@/lib/types';
+import type { Profile } from '@shared';
 
 interface SessionContextValue {
   session: Session | null;
@@ -27,16 +28,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadProfile = async (userId: string) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
-    setProfile((data as Profile) ?? null);
+  // Load the profile through the API (GET /me) — the app never queries the DB
+  // directly. SessionProvider stays auth-only otherwise (data lives in hooks).
+  const loadProfile = async () => {
+    try {
+      const profile = await unwrap<Profile>(rpc.api.me.$get());
+      setProfile(profile);
+    } catch {
+      setProfile(null);
+    }
   };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) {
-        loadProfile(session.user.id).finally(() => setLoading(false));
+        loadProfile().finally(() => setLoading(false));
       } else {
         setLoading(false);
       }
@@ -47,7 +54,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
-        loadProfile(session.user.id);
+        loadProfile();
       } else {
         setProfile(null);
       }
@@ -57,7 +64,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const refreshProfile = async () => {
-    if (session) await loadProfile(session.user.id);
+    if (session) await loadProfile();
   };
 
   return (

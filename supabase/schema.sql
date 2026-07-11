@@ -1,9 +1,11 @@
 -- ============================================================================
--- NutriWorkoutExpert — full v1.0 schema
+-- NutriWorkoutExpert — full v1.0 schema  ·  DESIGN REFERENCE (read-only)
 -- ============================================================================
--- Run in the Supabase SQL Editor (Dashboard → SQL Editor → paste → Run).
--- Becomes supabase/migrations/0001_init.sql in NWE-110; after that, changes
--- ship as NEW numbered migrations — never edit this one once applied.
+-- ⚠️ NWE-110 copied this VERBATIM to supabase/migrations/0001_init.sql, which is
+--    now the AUTHORITATIVE schema (applied by `supabase db reset` / CI). This file
+--    is kept only as an annotated design reference. Schema changes ship as NEW
+--    numbered migrations under supabase/migrations/ — do NOT edit 0001, and edits
+--    here have no effect on the database.
 --
 -- Design principles (the "whys" — full rationale in docs/data-model.md):
 --

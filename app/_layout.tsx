@@ -1,11 +1,16 @@
+import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { ActivityIndicator } from 'react-native';
 import 'react-native-reanimated';
 
+import { ErrorBanner } from '@/components/ErrorBanner';
 import { SessionProvider, useSession } from '@/components/SessionProvider';
+import { View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
+import { queryClient } from '@/lib/queryClient';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -40,35 +45,63 @@ export default function RootLayout() {
   }
 
   return (
-    <SessionProvider>
-      <RootLayoutNav />
-    </SessionProvider>
+    <QueryClientProvider client={queryClient}>
+      <SessionProvider>
+        <RootLayoutNav />
+      </SessionProvider>
+    </QueryClientProvider>
   );
 }
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  const { session, loading } = useSession();
+  const { session, profile, loading } = useSession();
   const segments = useSegments();
   const router = useRouter();
+
+  // A profile is "incomplete" until the core body stats exist (NWE-104).
+  const profileIncomplete =
+    !!profile && (!profile.sex || !profile.birth_year || !profile.height_cm);
 
   useEffect(() => {
     if (loading) return;
     const inAuthGroup = segments[0] === '(auth)';
+    const inOnboarding = segments[0] === '(onboarding)';
     if (!session && !inAuthGroup) {
       router.replace('/(auth)/sign-in');
     } else if (session && inAuthGroup) {
       router.replace('/(tabs)');
+    } else if (session && profileIncomplete && !inOnboarding) {
+      // Signed in but never set up → the wizard (skippable from within).
+      router.replace('/(onboarding)');
     }
-  }, [session, loading, segments]);
+  }, [session, loading, segments, profileIncomplete]);
+
+  // Hold on a neutral splash until the session resolves, so no tab flashes its
+  // empty/wrong state before the auth redirect runs (NWE-101 AC#3).
+  if (loading) {
+    return (
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator />
+        </View>
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/sign-in" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)/reset-password" options={{ headerShown: false }} />
+        <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
+        <Stack.Screen name="delete-account" options={{ title: 'Delete account' }} />
+        <Stack.Screen name="recipe-editor" options={{ presentation: 'modal', title: 'Recipe' }} />
+        <Stack.Screen name="photo-viewer" options={{ presentation: 'fullScreenModal', headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
+      <ErrorBanner />
     </ThemeProvider>
   );
 }

@@ -37,6 +37,14 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# supabase local stack (Docker volumes, temp, generated types)
+supabase/.branches/
+supabase/.temp/
+supabase/functions/**/deno.lock
+
+# test / coverage
+coverage/
+
 # generated native folders
 /ios
 /android

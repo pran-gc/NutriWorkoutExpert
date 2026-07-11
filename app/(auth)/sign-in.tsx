@@ -1,15 +1,10 @@
+import * as Linking from 'expo-linking';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  TextInput,
-} from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet } from 'react-native';
 
 import { Text, View } from '@/components/Themed';
+import { Button, Input } from '@/components/ui';
+import { Brand } from '@/constants/Colors';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 export default function SignInScreen() {
@@ -17,6 +12,21 @@ export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const forgotPassword = async () => {
+    if (!email.trim()) {
+      Alert.alert('Enter your email', 'Type your email above, then tap "Forgot password?".');
+      return;
+    }
+    // The emailed link deep-links back to the app's set-new-password screen.
+    const redirectTo = Linking.createURL('/reset-password');
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+    if (error) {
+      Alert.alert('Could not send reset email', error.message);
+    } else {
+      Alert.alert('Check your inbox', 'We sent a link to reset your password.');
+    }
+  };
 
   const submit = async () => {
     if (!email.trim() || !password) {
@@ -67,35 +77,34 @@ export default function SignInScreen() {
           </View>
         )}
 
-        <TextInput
-          style={styles.input}
+        <Input
           placeholder="Email"
-          placeholderTextColor="#999"
           autoCapitalize="none"
           keyboardType="email-address"
           autoComplete="email"
           value={email}
           onChangeText={setEmail}
         />
-        <TextInput
-          style={styles.input}
+        <Input
           placeholder="Password"
-          placeholderTextColor="#999"
           secureTextEntry
           autoComplete={mode === 'signIn' ? 'password' : 'new-password'}
           value={password}
           onChangeText={setPassword}
         />
 
-        <Pressable style={styles.button} onPress={submit} disabled={busy}>
-          {busy ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>
-              {mode === 'signIn' ? 'Sign in' : 'Create account'}
-            </Text>
-          )}
-        </Pressable>
+        <Button
+          title={mode === 'signIn' ? 'Sign in' : 'Create account'}
+          onPress={submit}
+          loading={busy}
+          style={{ marginTop: 4 }}
+        />
+
+        {mode === 'signIn' && (
+          <Pressable onPress={forgotPassword}>
+            <Text style={styles.switchText}>Forgot password?</Text>
+          </Pressable>
+        )}
 
         <Pressable onPress={() => setMode(mode === 'signIn' ? 'signUp' : 'signIn')}>
           <Text style={styles.switchText}>
@@ -140,31 +149,10 @@ const styles = StyleSheet.create({
     color: '#fed7aa',
     fontSize: 13,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#666',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#888',
-  },
-  button: {
-    backgroundColor: '#16a34a',
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   switchText: {
     textAlign: 'center',
     marginTop: 12,
-    color: '#16a34a',
+    color: Brand.accent,
     fontSize: 14,
   },
 });

@@ -13,10 +13,15 @@ shared, with unit tests.
 - `api.ts` — (NWE-114) the typed API client: wraps Hono RPC `hc<AppType>`, attaches the
   current session's JWT, unwraps the `{ data } / { error }` envelope, throws typed errors the
   error-banner layer (NWE-105) understands. **All data reads/writes go through this.**
-- `types.ts`, `nutrition.ts` — domain types + nutrition math. ⚠️ Scheduled to MOVE to
-  `packages/shared` in NWE-112; until then they are the source of truth — don't duplicate.
-- `food-api.ts` — Open Food Facts search from the client. ⚠️ Legacy: NWE-114 moves this
-  behind the API (`GET /foods/search`); delete the client-side version then.
+- `hooks.ts` — TanStack Query hooks (the app's data layer). Every read/write is a hook here
+  over `api.ts`; screens never call the client directly. Query keys `[resource, ...params]`.
+- `queryClient.ts` — the shared QueryClient: retry policy (network/5xx retry, 4xx surface) and
+  the global error-banner wiring (NWE-105).
+- `errorBanner.ts` — pub/sub store + error→message mapping feeding `components/ErrorBanner`.
+- `photos.ts` — on-device photo helpers (wipe-on-delete now; NWE-204 builds the full util).
+- Domain types + nutrition math + Zod contracts now live in **`packages/shared`** (imported as
+  `@shared`), not here. `food-api.ts` was deleted — Open Food Facts is proxied by the API
+  (`GET /foods/search`).
 
 ## Rules
 

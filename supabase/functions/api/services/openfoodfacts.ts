@@ -1,4 +1,9 @@
-import type { FoodSearchResult } from '@/lib/types';
+// Open Food Facts search, proxied server-side (docs/api.md "Third-party proxying").
+// The app never calls OFF directly — it goes through GET /foods/search. Sets a
+// proper User-Agent and maps upstream failure to UPSTREAM_ERROR. (NWE-114 AC#4:
+// absorbs the old lib/food-api.ts.)
+import type { FoodSearchResult } from '../../_shared/index.ts';
+import { HttpError } from '../middleware/error.ts';
 
 const SEARCH_URL = 'https://world.openfoodfacts.org/cgi/search.pl';
 
@@ -14,11 +19,7 @@ interface OffProduct {
   };
 }
 
-/**
- * Search the free Open Food Facts database. Values are per 100 g.
- * Results without a name or calorie data are dropped.
- */
-export async function searchFoods(query: string, signal?: AbortSignal): Promise<FoodSearchResult[]> {
+export async function searchFoods(query: string): Promise<FoodSearchResult[]> {
   const params = new URLSearchParams({
     search_terms: query,
     search_simple: '1',
@@ -28,12 +29,16 @@ export async function searchFoods(query: string, signal?: AbortSignal): Promise<
     fields: 'code,product_name,brands,nutriments',
   });
 
-  const res = await fetch(`${SEARCH_URL}?${params.toString()}`, {
-    signal,
-    headers: { 'User-Agent': 'NutriWorkoutExpert/0.1 (personal project)' },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${SEARCH_URL}?${params.toString()}`, {
+      headers: { 'User-Agent': 'NutriWorkoutExpert/1.0 (personal project)' },
+    });
+  } catch {
+    throw new HttpError('UPSTREAM_ERROR', 'Food database is unreachable right now.');
+  }
   if (!res.ok) {
-    throw new Error(`Food search failed (${res.status})`);
+    throw new HttpError('UPSTREAM_ERROR', `Food search failed (${res.status}).`);
   }
 
   const data = (await res.json()) as { products?: OffProduct[] };

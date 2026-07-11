@@ -8,7 +8,8 @@
     "scheme": "nutriworkoutexpert",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.NutriWorkoutExpert"
     },
     "android": {
       "adaptiveIcon": {
@@ -34,7 +35,8 @@
           "backgroundColor": "#ffffff"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true
