@@ -41,6 +41,11 @@ export default function ProfileScreen() {
   const [goal, setGoal] = useState<GoalType>('maintain');
   const [targetWeight, setTargetWeight] = useState('');
   const [waterTarget, setWaterTarget] = useState('');
+  const [targetsLocked, setTargetsLocked] = useState(false);
+  const [calorieTarget, setCalorieTarget] = useState('');
+  const [proteinTarget, setProteinTarget] = useState('');
+  const [carbsTarget, setCarbsTarget] = useState('');
+  const [fatTarget, setFatTarget] = useState('');
   const [newWeight, setNewWeight] = useState('');
 
   const { latest: latestWeight } = useLatestWeight();
@@ -61,6 +66,11 @@ export default function ProfileScreen() {
     setGoal(profile.goal_type);
     setTargetWeight(profile.target_weight_kg?.toString() ?? '');
     setWaterTarget(profile.water_target_ml?.toString() ?? '2000');
+    setTargetsLocked(profile.targets_locked);
+    setCalorieTarget(profile.calorie_target?.toString() ?? '');
+    setProteinTarget(profile.protein_target_g?.toString() ?? '');
+    setCarbsTarget(profile.carbs_target_g?.toString() ?? '');
+    setFatTarget(profile.fat_target_g?.toString() ?? '');
   }, [profile]);
 
   const logWeight = async () => {
@@ -88,6 +98,15 @@ export default function ProfileScreen() {
         goal_type: goal,
         target_weight_kg: parseFloat(targetWeight) || null,
         water_target_ml: parseInt(waterTarget, 10) || 2000,
+        targets_locked: targetsLocked,
+        ...(targetsLocked
+          ? {
+              calorie_target: parseInt(calorieTarget, 10) || null,
+              protein_target_g: parseInt(proteinTarget, 10) || null,
+              carbs_target_g: parseInt(carbsTarget, 10) || null,
+              fat_target_g: parseInt(fatTarget, 10) || null,
+            }
+          : {}),
       });
       await refreshProfile();
       Alert.alert(
@@ -215,6 +234,12 @@ export default function ProfileScreen() {
             value={targetWeight}
             onChangeText={setTargetWeight}
           />
+          <Pressable
+            accessibilityLabel="Goal progress"
+            style={styles.accountRow}
+            onPress={() => router.push('/goal-analytics')}>
+            <Text style={styles.redoText}>View progress →</Text>
+          </Pressable>
           <Input
             placeholder="Water target (ml, default 2000)"
             keyboardType="numeric"
@@ -223,20 +248,47 @@ export default function ProfileScreen() {
           />
         </Card>
 
-        {profile?.calorie_target != null && (
-          <>
-            <SectionTitle>Current daily targets</SectionTitle>
-            <Card>
-              <Text>
-                {profile.calorie_target} kcal · Protein {profile.protein_target_g ?? '—'} g ·
-                Carbs {profile.carbs_target_g ?? '—'} g · Fat {profile.fat_target_g ?? '—'} g
+        <SectionTitle>Current daily targets</SectionTitle>
+        <Card>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Target lock toggle"
+            style={styles.lockRow}
+            onPress={() => setTargetsLocked((v) => !v)}>
+            <View style={styles.lockHeader}>
+              <Text style={styles.lockTitle}>{targetsLocked ? 'Custom targets' : 'Auto targets'}</Text>
+              <Text style={[styles.targetPill, targetsLocked ? styles.targetPillCustom : styles.targetPillAuto]}>
+                {targetsLocked ? 'custom' : 'auto'}
               </Text>
-              <Muted>
-                Recalculated automatically when you save your profile (Mifflin-St Jeor formula).
-              </Muted>
-            </Card>
-          </>
-        )}
+            </View>
+            <Muted>{targetsLocked ? 'Tap to resume auto targets.' : 'Auto · Mifflin-St Jeor'}</Muted>
+          </Pressable>
+          {targetsLocked ? (
+            <>
+              <Input placeholder="Calories" keyboardType="numeric" value={calorieTarget} onChangeText={setCalorieTarget} />
+              <View style={styles.row}>
+                <Input style={{ flex: 1 }} placeholder="Protein g" keyboardType="numeric" value={proteinTarget} onChangeText={setProteinTarget} />
+                <Input style={{ flex: 1 }} placeholder="Carbs g" keyboardType="numeric" value={carbsTarget} onChangeText={setCarbsTarget} />
+                <Input style={{ flex: 1 }} placeholder="Fat g" keyboardType="numeric" value={fatTarget} onChangeText={setFatTarget} />
+              </View>
+              <Muted>Auto-recompute is off while custom targets are locked.</Muted>
+            </>
+          ) : (
+            <>
+              <Input
+                placeholder="Calories"
+                value={`${profile?.calorie_target ?? '—'} kcal`}
+                editable={false}
+              />
+              <View style={styles.row}>
+                <Input style={{ flex: 1 }} placeholder="Protein g" value={`${profile?.protein_target_g ?? '—'} g`} editable={false} />
+                <Input style={{ flex: 1 }} placeholder="Carbs g" value={`${profile?.carbs_target_g ?? '—'} g`} editable={false} />
+                <Input style={{ flex: 1 }} placeholder="Fat g" value={`${profile?.fat_target_g ?? '—'} g`} editable={false} />
+              </View>
+              <Muted>Recalculated automatically when you save your profile.</Muted>
+            </>
+          )}
+        </Card>
 
         <Button
           title={updateProfile.isPending ? 'Saving…' : 'Save profile & update targets'}
@@ -250,6 +302,34 @@ export default function ProfileScreen() {
 
         <SectionTitle>Account</SectionTitle>
         <Card>
+          <Pressable
+            accessibilityLabel="Progress photos"
+            onPress={() => router.push('/progress-photos')}
+            style={styles.accountRow}>
+            <Text>Progress photos</Text>
+            <Muted>Photos stay on this device.</Muted>
+          </Pressable>
+          <Pressable
+            accessibilityLabel="Notifications"
+            onPress={() => router.push('/notifications')}
+            style={styles.accountRow}>
+            <Text>Notifications</Text>
+            <Muted>Reminders, quiet hours, weekly review pushes.</Muted>
+          </Pressable>
+          <Pressable
+            accessibilityLabel="Badges"
+            onPress={() => router.push('/badges')}
+            style={styles.accountRow}>
+            <Text>Badges</Text>
+            <Muted>Earned from logged actions.</Muted>
+          </Pressable>
+          <Pressable
+            accessibilityLabel="AI photo consent"
+            onPress={() => router.push('/physique-compare')}
+            style={styles.accountRow}>
+            <Text>AI photo consent</Text>
+            <Muted>Review or revoke physique compare consent.</Muted>
+          </Pressable>
           {showPassword ? (
             <>
               <Input
@@ -317,6 +397,36 @@ const styles = StyleSheet.create({
   },
   accountRow: {
     paddingVertical: 10,
+  },
+  lockRow: {
+    paddingVertical: 4,
+    backgroundColor: 'transparent',
+  },
+  lockHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    backgroundColor: 'transparent',
+  },
+  lockTitle: {
+    fontWeight: '600',
+  },
+  targetPill: {
+    overflow: 'hidden',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  targetPillAuto: {
+    color: Brand.accent,
+    backgroundColor: 'rgba(22,163,74,.12)',
+  },
+  targetPillCustom: {
+    color: '#fff',
+    backgroundColor: Brand.accent,
   },
   deleteText: {
     color: Brand.destructive,

@@ -7,13 +7,20 @@ import { logger } from 'hono/logger';
 
 import { authMiddleware } from './middleware/auth.ts';
 import { onError } from './middleware/error.ts';
+import { analyticsRoute } from './routes/analytics.ts';
+import { cronRoute } from './routes/cron.ts';
+import { exercisesRoute } from './routes/exercises.ts';
 import { favoritesRoute } from './routes/favorites.ts';
 import { foodLogsRoute } from './routes/food-logs.ts';
 import { waterRoute } from './routes/water.ts';
 import { foodsRoute } from './routes/foods.ts';
 import { healthRoute } from './routes/health.ts';
+import { gamificationRoute } from './routes/gamification.ts';
+import { insightsRoute } from './routes/insights.ts';
 import { meRoute } from './routes/me.ts';
+import { notificationsRoute } from './routes/notifications.ts';
 import { recipesRoute } from './routes/recipes.ts';
+import { routinesRoute } from './routes/routines.ts';
 import { weightsRoute } from './routes/weights.ts';
 import { workoutsRoute } from './routes/workouts.ts';
 import type { Env } from './types.ts';
@@ -40,9 +47,21 @@ app.use('/recipes/*', authMiddleware);
 app.use('/recipes', authMiddleware);
 app.use('/workouts/*', authMiddleware);
 app.use('/workouts', authMiddleware);
+app.use('/exercises/*', authMiddleware);
+app.use('/exercises', authMiddleware);
+app.use('/routines/*', authMiddleware);
+app.use('/routines', authMiddleware);
+app.use('/analytics/*', authMiddleware);
+app.use('/insights/*', authMiddleware);
+app.use('/insights', authMiddleware);
+app.use('/streaks', authMiddleware);
+app.use('/quests', authMiddleware);
+app.use('/badges', authMiddleware);
+app.use('/notifications/*', authMiddleware);
 
 const routes = app
   .route('/health', healthRoute)
+  .route('/cron', cronRoute)
   .route('/me', meRoute)
   .route('/weights', weightsRoute)
   .route('/food-logs', foodLogsRoute)
@@ -50,7 +69,13 @@ const routes = app
   .route('/favorites', favoritesRoute)
   .route('/water', waterRoute)
   .route('/recipes', recipesRoute)
-  .route('/workouts', workoutsRoute);
+  .route('/workouts', workoutsRoute)
+  .route('/exercises', exercisesRoute)
+  .route('/routines', routinesRoute)
+  .route('/analytics', analyticsRoute)
+  .route('/insights', insightsRoute)
+  .route('/', gamificationRoute)
+  .route('/notifications', notificationsRoute);
 
 // The type the app imports for `hc<AppType>` full inference.
 export type AppType = typeof routes;

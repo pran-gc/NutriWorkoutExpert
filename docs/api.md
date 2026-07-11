@@ -62,8 +62,8 @@ Status: ✅ exists · 🔜 M1 (NWE-113/114) · 🚧 arrives with its feature sto
 | 🔜 `POST /food-logs` | 114 | manual or from-search entry (denormalized macros) |
 | 🔜 `PATCH /food-logs/:id` · `DELETE /food-logs/:id` | 114/205 | edit rescales macros server-side |
 | 🔜 `GET /foods/search?q=` | 114 | proxies Open Food Facts (normalized per-100g), caches hot queries |
-| 🚧 `POST /foods/analyze-photo` | 508 | ephemeral photo → top-5 dish candidates + ingredients + quantities (Gemini vision) |
-| 🚧 `POST /foods/resolve` | 508 | ingredients → macros via USDA FoodData Central (generic) + Open Food Facts (packaged) |
+| ✅ `POST /foods/analyze-photo` | 508 | ephemeral photo → validated dish candidates + ingredients + quantities |
+| ✅ `POST /foods/resolve` | 508 | ingredients → macros, unresolved rows flagged as AI estimates |
 | 🚧 `GET /foods/recent` | 201 | last 20 distinct logged foods |
 | 🚧 `GET/POST/DELETE /favorites` | 201 | |
 | 🚧 `GET/POST/PATCH/DELETE /recipes` | 202 | items nested; totals computed in shared logic |
@@ -75,38 +75,42 @@ Status: ✅ exists · 🔜 M1 (NWE-113/114) · 🚧 arrives with its feature sto
 | 🔜 `GET /workout-sessions?from&to` | 114 | with nested sets |
 | 🔜 `POST /workout-sessions` | 114 | session + sets in one call (transactional) |
 | 🔜 `PATCH /workout-sessions/:id` · `DELETE …/:id` | 114/305 | |
-| 🚧 `GET /exercises?q=` · `POST /exercises` | 301 | global seed + user's custom |
-| 🚧 `GET /exercises/:id/history` | 303 | best set + volume per session, for charts |
-| 🚧 `GET/POST/PATCH/DELETE /routines` | 302 | `GET /routines/:id/prefill` returns exercises + last session's numbers |
-| 🚧 `POST /routines/generate` | 509 | AI program from setup Q&A → strict JSON mapped to library IDs |
-| 🚧 `POST /routines/:id/adapt` | 510 | detector-triggered AI adjustment diff (user approves before apply) |
+| ✅ `GET /exercises?q=` · `POST /exercises` | 301 | global seed + user's custom |
+| ✅ `GET /exercises/:id/history` | 303 | best set + volume per session, for charts |
+| ✅ `GET/POST/PUT/DELETE /routines` | 302 | `GET /routines/:id/prefill` returns exercises + last session's numbers |
+| ✅ `POST /routines/generate` | 509 | AI program from setup Q&A → strict JSON mapped to library IDs |
+| ✅ `POST /routines/generated/save` | 509 | writes generated days as normal editable routines |
+| ✅ `POST /routines/:id/adapt` | 510 | coach adjustment diff (user approves before apply) |
+| ✅ `POST /routines/:id/apply-diff` | 510 | logs an approved training adjustment |
 
 ### Analytics (pre-aggregated server-side; math in `packages/shared`, TDD'd)
 | Method & path | Story | Notes |
 |---|---|---|
-| 🚧 `GET /analytics/food?from&to` | 407 | adherence per day, macro splits, meal-type split, top foods |
-| 🚧 `GET /analytics/training?from&to` | 408 | weekly volume by muscle group, consistency, PR feed (e1RM), cardio |
-| 🚧 `GET /analytics/goal` | 409 | weight projection + ETA, pace vs plan, adherence↔progress series |
+| ✅ `GET /analytics/food?from&to` | 407 | adherence per day, macro splits, meal-type split, top foods |
+| ✅ `GET /analytics/training?from&to` | 408 | weekly volume by muscle group, consistency, PR feed (e1RM), cardio |
+| ✅ `GET /analytics/goal` | 409 | weight projection + ETA, pace vs plan, adherence↔progress series |
 
 ### Engagement & notifications
 | Method & path | Story | Notes |
 |---|---|---|
-| 🚧 `GET /quests?date=` | 605 | quest list + completion computed server-side from real logs |
-| 🚧 `GET /badges` | 604 | catalog + earned state; awarding is idempotent, evaluated server-side |
-| 🚧 `GET /streaks` | 602 | logging streak + perfect-day streak (shared logic) |
-| 🚧 `POST /devices` | 607 | Expo push-token registration (multi-device, token refresh) |
-| 🚧 `GET/PATCH /notification-prefs` | 607 | categories + quiet hours; enforced server-side before any push |
-| 🚧 `POST /notifications/test` | 607 | dev-only end-to-end push check |
+| ✅ `GET /quests?date=` | 605 | quest list + completion computed server-side from real logs |
+| ✅ `GET /badges` | 604 | starter catalog + earned state; awarding is idempotent, evaluated server-side |
+| ✅ `GET /streaks?date=` | 602 | food logging streak (perfect-day streak still pending) |
+| ✅ `POST /notifications/tokens` | 607 | Expo push-token registration (multi-device/token refresh via token upsert) |
+| ✅ `GET/PATCH /notifications/prefs` | 607 | categories + quiet hours persisted on profile |
+| ✅ `POST /notifications/test` | 607 | dev-only push eligibility check |
+| ✅ `POST /cron/weekly-review` | 603 | cron-callable weekly review generation, guarded by `CRON_SECRET` when set |
 
 ### Insights (AI)
 | Method & path | Story | Notes |
 |---|---|---|
-| 🚧 `GET /insights/weekly-summary?week=` | 501 | aggregate JSON only, no LLM |
-| 🚧 `POST /insights/generate` | 502 | idempotent per (user, week); 429 on Gemini quota |
-| 🚧 `GET /insights?kind=` | 503 | list stored reviews / physique feedback |
-| 🚧 `POST /insights/physique-compare` | 507 | multipart/base64 photos, ephemeral — **never persisted**; requires recorded consent; stores text only |
-| 🚧 `POST /insights/council` | 511 | coordinated weekly plan from goal + nutrition + training coach roles; diffs need user approval |
-| 🚧 `DELETE /insights/:id` | 503/507 | |
+| ✅ `GET /insights/weekly-summary?week=` | 501 | aggregate JSON only, no LLM |
+| ✅ `POST /insights/generate` | 502/511 | sparse users get the simple weekly review; data-rich users get the council plan |
+| ✅ `GET /insights` | 503 | list stored reviews / physique feedback |
+| ✅ `POST /insights/physique/analyze` | 507 | base64 photos accepted ephemerally; requires recorded consent; stores text only |
+| ✅ `POST /insights/council` | 511 | same sparse/data-rich boundary as generate; returns weekly fallback or council plan |
+| ✅ `POST /insights/:id/apply-proposal` | 511 | explicitly applies an approved council target diff; refuses locked targets; stamps `applied_at` |
+| ✅ `DELETE /insights/:id` | 503/507 | deletes a generated insight/feedback row |
 
 ## Hono app structure
 
@@ -118,7 +122,7 @@ supabase/functions/api/
     error.ts          # catch-all → error envelope, logging
   routes/
     health.ts  me.ts  weights.ts  food-logs.ts  foods.ts  workouts.ts
-    exercises.ts  routines.ts  insights.ts  water.ts ...
+    exercises.ts  routines.ts  insights.ts  gamification.ts  notifications.ts  cron.ts  water.ts ...
   services/           # logic with I/O (db queries, gemini.ts, openfoodfacts.ts)
 ```
 

@@ -97,6 +97,11 @@ function RootLayoutNav() {
         <Stack.Screen name="(auth)/reset-password" options={{ headerShown: false }} />
         <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
         <Stack.Screen name="delete-account" options={{ title: 'Delete account' }} />
+        <Stack.Screen name="food-analytics" options={{ title: 'Food analytics' }} />
+        <Stack.Screen name="gym-analytics" options={{ title: 'Gym analytics' }} />
+        <Stack.Screen name="goal-analytics" options={{ title: 'Goal progress' }} />
+        <Stack.Screen name="progress-photos" options={{ title: 'Progress photos' }} />
+        <Stack.Screen name="exercise-detail" options={{ title: 'Exercise progress' }} />
         <Stack.Screen name="recipe-editor" options={{ presentation: 'modal', title: 'Recipe' }} />
         <Stack.Screen name="photo-viewer" options={{ presentation: 'fullScreenModal', headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />

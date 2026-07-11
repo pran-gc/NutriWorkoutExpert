@@ -28,6 +28,21 @@ export type MealType = z.infer<typeof mealTypeSchema>;
 export const foodSourceSchema = z.enum(['manual', 'openfoodfacts', 'recipe', 'ai_photo']);
 export type FoodSource = z.infer<typeof foodSourceSchema>;
 
+export const exerciseMuscleGroupSchema = z.enum([
+  'chest',
+  'back',
+  'shoulders',
+  'legs',
+  'arms',
+  'core',
+  'full_body',
+  'cardio',
+]);
+export type ExerciseMuscleGroup = z.infer<typeof exerciseMuscleGroupSchema>;
+
+export const exerciseKindSchema = z.enum(['strength', 'cardio']);
+export type ExerciseKind = z.infer<typeof exerciseKindSchema>;
+
 // A device-local calendar day, YYYY-MM-DD (never a timestamp — see data-model.md #4).
 export const isoDateSchema = z
   .string()
@@ -52,6 +67,7 @@ export const profileSchema = z.object({
   fat_target_g: z.number().int().nullable(),
   targets_locked: z.boolean(),
   water_target_ml: z.number().int(),
+  notification_prefs: z.record(z.unknown()).optional(),
 });
 export type Profile = z.infer<typeof profileSchema>;
 
@@ -85,11 +101,13 @@ export const workoutSetSchema = z.object({
   id: z.string().uuid(),
   session_id: z.string().uuid(),
   user_id: z.string().uuid(),
+  exercise_id: z.string().uuid().nullable().optional(),
   exercise: z.string(),
   set_number: z.number().int(),
   reps: z.number().int().nullable(),
   weight_kg: z.number().nullable(),
   duration_min: z.number().nullable(),
+  distance_km: z.number().nullable().optional(),
 });
 export type WorkoutSet = z.infer<typeof workoutSetSchema>;
 
@@ -99,10 +117,42 @@ export const workoutSessionSchema = z.object({
   title: z.string(),
   notes: z.string().nullable(),
   duration_min: z.number().int().nullable(),
+  routine_id: z.string().uuid().nullable().optional(),
   logged_on: isoDateSchema,
   workout_sets: z.array(workoutSetSchema).optional(),
 });
 export type WorkoutSession = z.infer<typeof workoutSessionSchema>;
+
+export const exerciseSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid().nullable(),
+  name: z.string(),
+  muscle_group: exerciseMuscleGroupSchema,
+  kind: exerciseKindSchema,
+});
+export type Exercise = z.infer<typeof exerciseSchema>;
+
+export const routineExerciseSchema = z.object({
+  id: z.string().uuid(),
+  routine_id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  exercise_id: z.string().uuid(),
+  position: z.number().int(),
+  target_sets: z.number().int(),
+  target_reps: z.number().int().nullable(),
+  exercise: exerciseSchema.optional(),
+});
+export type RoutineExercise = z.infer<typeof routineExerciseSchema>;
+
+export const routineSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  name: z.string(),
+  notes: z.string().nullable(),
+  source: z.enum(['user', 'ai']),
+  routine_exercises: z.array(routineExerciseSchema).optional(),
+});
+export type Routine = z.infer<typeof routineSchema>;
 
 export const recipeItemSchema = z.object({
   id: z.string().uuid(),
@@ -168,3 +218,47 @@ export const foodSearchResultSchema = z.object({
   fatPer100g: z.number(),
 });
 export type FoodSearchResult = z.infer<typeof foodSearchResultSchema>;
+
+export const insightKindSchema = z.enum(['weekly', 'council', 'physique', 'training', 'checkin']);
+export type InsightKind = z.infer<typeof insightKindSchema>;
+
+export const insightSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  kind: insightKindSchema,
+  week_start: isoDateSchema.nullable(),
+  detector: z.string().nullable(),
+  content: z.string(),
+  payload: z.record(z.unknown()).nullable(),
+  model: z.string(),
+  prompt_version: z.string(),
+  read_at: z.string().nullable(),
+  applied_at: z.string().nullable(),
+  dismissed_at: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export type Insight = z.infer<typeof insightSchema>;
+
+export const notificationPrefsSchema = z.object({
+  enabled: z.boolean().default(false),
+  meal_reminders: z.boolean().default(false),
+  weigh_in_reminders: z.boolean().default(false),
+  weekly_review: z.boolean().default(true),
+  meal_times: z.array(z.string().regex(/^\d{2}:\d{2}$/)).default(['08:00', '13:00', '19:00']),
+  weigh_in_time: z.string().regex(/^\d{2}:\d{2}$/).default('08:00'),
+  quiet_hours: z.object({
+    start: z.string().regex(/^\d{2}:\d{2}$/).default('21:00'),
+    end: z.string().regex(/^\d{2}:\d{2}$/).default('07:00'),
+  }).default({ start: '21:00', end: '07:00' }),
+});
+export type NotificationPrefs = z.infer<typeof notificationPrefsSchema>;
+
+export const earnedBadgeSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  badge_id: z.string(),
+  earned_at: z.string(),
+  seen_at: z.string().nullable(),
+});
+export type EarnedBadge = z.infer<typeof earnedBadgeSchema>;

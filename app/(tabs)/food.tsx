@@ -1,5 +1,6 @@
 import { todayISO } from '@shared';
-import type { FoodLog, FoodSearchResult, MealType } from '@shared';
+import type { AiMealCandidate, FoodLog, FoodSearchResult, MealType, ResolvedIngredient } from '@shared';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
@@ -10,13 +11,14 @@ import { FavoritesRecents, type PickedFood } from '@/components/food/FavoritesRe
 import { PhotoThumbnail } from '@/components/food/PhotoThumbnail';
 import { RecipesSection } from '@/components/food/RecipesSection';
 import { useRouter } from 'expo-router';
-import { capturePhoto, deletePhoto, pickPhoto } from '@/lib/photos';
+import { capturePhoto, deletePhoto, localPhotoUri, pickPhoto } from '@/lib/photos';
 import { Text, View } from '@/components/Themed';
 import { Button, Card, Chip, ChipRow, EmptyState, Input, Muted, SectionTitle } from '@/components/ui';
 import { Brand } from '@/constants/Colors';
 import type { FavoriteFood, RecentFood } from '@shared';
 import {
   useAddFavorite,
+  useAnalyzeFoodPhoto,
   useCreateFoodLog,
   useDeleteFoodLog,
   useFavorites,
@@ -26,6 +28,7 @@ import {
   useRecentFoods,
   useRecipes,
   useRemoveFavorite,
+  useResolveFood,
   useUpdateFoodLog,
 } from '@/lib/hooks';
 
@@ -55,6 +58,12 @@ export default function FoodScreen() {
   const [showManual, setShowManual] = useState(false);
   const [editing, setEditing] = useState<FoodLog | null>(null);
   const [photoPath, setPhotoPath] = useState<string | null>(null);
+  const [aiCandidates, setAiCandidates] = useState<AiMealCandidate[]>([]);
+  const [resolvedMeal, setResolvedMeal] = useState<{
+    dish_name: string;
+    ingredients: ResolvedIngredient[];
+    totals: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
+  } | null>(null);
 
   const logsQuery = useFoodLogs(date);
   const searchQuery = useFoodSearch(query.trim());
@@ -67,6 +76,8 @@ export default function FoodScreen() {
   const removeFavorite = useRemoveFavorite();
   const recipesQuery = useRecipes();
   const logRecipe = useLogRecipe(date);
+  const analyzeFoodPhoto = useAnalyzeFoodPhoto();
+  const resolveFood = useResolveFood();
 
   const logRecipeById = async (recipeId: string, servings: number, meal: MealType) => {
     try {
@@ -166,6 +177,60 @@ export default function FoodScreen() {
     }
   };
 
+  const analyzePhotoMeal = async () => {
+    try {
+      const filename = await pickPhoto();
+      if (!filename) return;
+      setPhotoPath(filename);
+      const uri = localPhotoUri(filename);
+      if (!uri) throw new Error('Photo missing.');
+      const photo = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      const candidates = await analyzeFoodPhoto.mutateAsync({ photo, logged_on: date });
+      setAiCandidates(candidates);
+      setResolvedMeal(null);
+    } catch (e) {
+      Alert.alert('Could not analyze photo', e instanceof Error ? e.message : 'Please try again.');
+    }
+  };
+
+  const resolveCandidate = async (candidate: AiMealCandidate) => {
+    try {
+      const resolved = await resolveFood.mutateAsync({
+        dish_name: candidate.dish_name,
+        ingredients: candidate.ingredients.map((i) => ({ name: i.name, quantity_g: i.quantity_g })),
+      });
+      setResolvedMeal(resolved);
+    } catch (e) {
+      Alert.alert('Could not resolve ingredients', e instanceof Error ? e.message : 'Please try again.');
+    }
+  };
+
+  const logResolvedMeal = async () => {
+    if (!resolvedMeal) return;
+    try {
+      const grams = resolvedMeal.ingredients.reduce((sum, row) => sum + row.quantity_g, 0);
+      await createLog.mutateAsync({
+        food_name: resolvedMeal.dish_name,
+        brand: null,
+        meal_type: mealType,
+        quantity_g: grams || 100,
+        calories: resolvedMeal.totals.calories,
+        protein_g: resolvedMeal.totals.protein_g,
+        carbs_g: resolvedMeal.totals.carbs_g,
+        fat_g: resolvedMeal.totals.fat_g,
+        source: 'ai_photo',
+        source_id: JSON.stringify({ ingredients: resolvedMeal.ingredients }),
+        photo_path: photoPath,
+        logged_on: date,
+      });
+      setAiCandidates([]);
+      setResolvedMeal(null);
+      setPhotoPath(null);
+    } catch (e) {
+      Alert.alert('Could not log AI meal', e instanceof Error ? e.message : 'Please try again.');
+    }
+  };
+
   const confirmDelete = (log: FoodLog) => {
     Alert.alert('Delete entry', `Remove "${log.food_name}" from this day's log?`, [
       { text: 'Cancel', style: 'cancel' },
@@ -214,6 +279,47 @@ export default function FoodScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <DateBar date={date} onChange={setDate} />
+        <Pressable
+          accessibilityLabel="Food analytics"
+          onPress={() => router.push('/food-analytics')}
+          style={styles.analyticsLink}>
+          <Text style={styles.analyticsText}>View food analytics →</Text>
+        </Pressable>
+
+        <Card>
+          <View style={styles.snapHeader}>
+            <View style={{ backgroundColor: 'transparent', flex: 1 }}>
+              <Text style={styles.resultName}>Snap to log</Text>
+              <Muted>Portions are estimates — review before logging.</Muted>
+            </View>
+            <Button title="Photo" onPress={analyzePhotoMeal} loading={analyzeFoodPhoto.isPending} />
+          </View>
+          {aiCandidates.map((candidate) => (
+            <Pressable key={candidate.id} style={styles.resultRow} onPress={() => resolveCandidate(candidate)}>
+              <Text style={styles.resultName}>{candidate.dish_name}</Text>
+              <Muted>{Math.round(candidate.estimated_calories)} kcal estimate · {Math.round(candidate.confidence * 100)}% confidence</Muted>
+            </Pressable>
+          ))}
+          {resolvedMeal && (
+            <View style={styles.resolvedBox}>
+              <Text style={styles.resultName}>{resolvedMeal.dish_name}</Text>
+              {resolvedMeal.ingredients.map((ingredient) => (
+                <Muted key={ingredient.name}>
+                  {ingredient.name} · {ingredient.quantity_g} g {ingredient.estimated ? '· estimated' : ''}
+                </Muted>
+              ))}
+              <Muted>
+                {Math.round(resolvedMeal.totals.calories)} kcal · P {Math.round(resolvedMeal.totals.protein_g)} · C {Math.round(resolvedMeal.totals.carbs_g)} · F {Math.round(resolvedMeal.totals.fat_g)}
+              </Muted>
+              <ChipRow>
+                {MEALS.map((m) => (
+                  <Chip key={m} label={MEAL_LABELS[m]} active={mealType === m} onPress={() => setMealType(m)} />
+                ))}
+              </ChipRow>
+              <Button title="Log AI meal" onPress={logResolvedMeal} loading={createLog.isPending} />
+            </View>
+          )}
+        </Card>
 
         {editing && (
           <EditEntryPanel
@@ -303,7 +409,9 @@ export default function FoodScreen() {
           </Card>
         )}
 
-        <Pressable onPress={() => setShowManual(!showManual)}>
+        <Pressable
+          accessibilityLabel="Add food manually"
+          onPress={() => setShowManual(!showManual)}>
           <Text style={styles.manualToggle}>
             {showManual ? '− Hide manual entry' : "+ Can't find it? Add manually"}
           </Text>
@@ -447,6 +555,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
   },
+  snapHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'transparent',
+  },
+  resolvedBox: {
+    gap: 6,
+    paddingTop: 8,
+    backgroundColor: 'transparent',
+  },
   quantityRow: {
     flexDirection: 'row',
     gap: 8,
@@ -482,6 +601,14 @@ const styles = StyleSheet.create({
   },
   logCalories: {
     fontSize: 14,
+    fontWeight: '600',
+  },
+  analyticsLink: {
+    alignSelf: 'flex-end',
+    paddingVertical: 4,
+  },
+  analyticsText: {
+    color: Brand.accent,
     fontWeight: '600',
   },
 });

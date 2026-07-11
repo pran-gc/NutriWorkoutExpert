@@ -39,12 +39,18 @@ sequenceDiagram
     API-->>App: { data: Insight }
 ```
 
-**Weekly summary JSON** (shape owned by NWE-501 — document the final schema there and here):
-avg daily kcal vs target, adherence %, macro gaps, days-logged consistency, training sessions +
-volume by muscle group, cardio minutes, weight trend (first/last/7-day-MA delta), water avg.
+**Weekly summary JSON** (`packages/shared/src/insights.ts`):
+`weekStart`, `weekEnd`, `nutrition` (days logged, avg daily kcal, calorie target,
+adherence %, avg macros, macro gaps), `consistency` (food/workout/water days),
+`training` (sessions, volume by muscle group, cardio minutes), `weightTrend`
+(first/last kg, raw delta, 7-day moving-average delta), and `water` (avg ml, target ml).
+Current implementation keeps the aggregate privacy-safe and deterministic; the API sends only
+this JSON to Gemini.
 
 **Output contract** (enforced by prompt + post-validation): one summary paragraph,
-2–3 concrete recommendations, one encouragement line. Markdown, short.
+2–3 concrete recommendations, one encouragement line. Markdown, short. Local development uses
+a deterministic fallback review when `GEMINI_API_KEY` is absent; production should set the key
+as an Edge Function secret.
 
 ## Pipeline: physique compare (NWE-507)
 
@@ -64,6 +70,10 @@ photo library requirement**. Photos go through the API to Gemini **in memory onl
 encouraging and body-neutral · no body-shaming · no medical claims or diagnoses ·
 no body-fat-% guesses presented as fact · refusal path if images aren't physique photos ·
 feedback framed as observations + 1–2 suggestions, tied to the stats where possible.
+
+Implementation note (2026-07-11): `POST /insights/physique/analyze` requires server-recorded
+consent (`PATCH /me/ai-consent`), accepts base64 photos ephemerally, stores only text feedback
+in `insights`, and supports feedback deletion via `DELETE /insights/:id`.
 
 ## Pipeline: snap-to-log (NWE-508)
 
@@ -93,6 +103,10 @@ per-user daily quota guard. **Food DB split:** USDA FoodData Central for generic
 (it's built for that), Open Food Facts for packaged products — OFF alone is wrong for "1
 medium tomato".
 
+Implementation note (2026-07-11): `POST /foods/analyze-photo` and `POST /foods/resolve` are
+strict-schema, mockable endpoints; confirmed AI meals log as a single `food_logs` row with
+`source='ai_photo'` and ingredient detail serialized in `source_id`.
+
 ## Pipeline: workout generation & adaptation (NWE-509/510)
 
 - **Generation:** setup Q&A (goal, experience, days/week, equipment, constraints) → Gemini
@@ -102,6 +116,10 @@ medium tomato".
 - **Adaptation:** deterministic, TDD'd detectors in `packages/shared` (plateau by estimated
   1RM, missed sessions, volume drop, rapid progress) decide *when* to act; Gemini proposes
   the concrete routine diff; **the user approves before anything is applied**.
+
+Implementation note (2026-07-11): `POST /routines/generate` returns a strict generated program,
+`POST /routines/generated/save` writes generated days as normal routines, and
+`POST /routines/:id/adapt` / `apply-diff` store training suggestions in `insights`.
 
 ## The coach council (NWE-511)
 
@@ -115,6 +133,18 @@ Output: one coordinated weekly plan with per-coach attribution in the Insights U
 target/program diff requires user approval. Between weeklies, deterministic drop detectors
 (logging lapse ≥3 days, weight stall 2+ weeks, volume drop) trigger short check-in notes —
 quota-guarded (max one per detector per week), always encouraging in tone.
+
+Implementation note (2026-07-11): `hasEnoughDataForCouncil(summary)` is the boundary between the
+simple NWE-502 weekly review and the NWE-511 council. Brand-new/sparse users keep the simple review;
+users with at least three food-logging days plus training or weight evidence get the council plan.
+`POST /insights/generate` and `POST /insights/council` both use that boundary so the council
+replaces the plain weekly review only when the data can support it.
+
+Numeric target proposals are approval-only. `POST /insights/:id/apply-proposal` applies a target
+diff only when it belongs to that council plan and the profile targets are not already locked; on
+success it saves the target as a locked custom target and stamps the insight's `applied_at`.
+`POST /cron/weekly-review` provides the scheduled generation hook for active users and reports push
+eligibility after preference/quiet-hour gating.
 
 ## Later AI stories (parked)
 

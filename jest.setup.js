@@ -10,6 +10,24 @@ afterEach(async () => {
   await cleanup();
 });
 
+jest.mock('react-native-reanimated', () => {
+  const React = require('react');
+  const RN = require('react-native');
+  return {
+    __esModule: true,
+    default: {
+      View: RN.View,
+      Text: RN.Text,
+    },
+    useSharedValue: (value) => ({ value }),
+    useAnimatedStyle: (factory) => factory(),
+    withTiming: (value) => value,
+    withSpring: (value) => value,
+    withSequence: (...values) => values[values.length - 1],
+    createAnimatedComponent: (Component) => React.forwardRef((props, ref) => React.createElement(Component, { ...props, ref })),
+  };
+});
+
 // Mock the Supabase client so components never hit the network in unit tests.
 jest.mock('@/lib/supabase', () => ({
   isSupabaseConfigured: true,

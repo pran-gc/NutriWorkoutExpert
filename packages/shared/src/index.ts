@@ -14,3 +14,8 @@ export * from './envelope.ts';
 export * from './contracts.ts';
 export * from './foodMath.ts';
 export * from './recipeMath.ts';
+export * from './workoutAnalytics.ts';
+export * from './insights.ts';
+export * from './gamification.ts';
+export * from './notifications.ts';
+export * from './trainingDetectors.ts';

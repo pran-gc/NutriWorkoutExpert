@@ -3,7 +3,13 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 
-import { computeTargets, ok, updateProfileSchema } from '../../_shared/index.ts';
+import {
+  aiConsentSchema,
+  computeTargets,
+  ok,
+  updateAiConsentSchema,
+  updateProfileSchema,
+} from '../../_shared/index.ts';
 import { HttpError } from '../middleware/error.ts';
 import { zval } from '../middleware/validate.ts';
 import { adminDb } from '../services/adminDb.ts';
@@ -38,7 +44,7 @@ export const meRoute = new Hono<Env>()
     // Recompute targets from body stats + latest weight — UNLESS the user locked
     // their own numbers (NWE-404). Locked profiles keep their targets verbatim.
     const update: Record<string, unknown> = { ...patch };
-    if (!current.targets_locked) {
+    if (!merged.targets_locked) {
       const { data: latest } = await db
         .from('weight_logs')
         .select('weight_kg')
@@ -77,6 +83,33 @@ export const meRoute = new Hono<Env>()
       bundle[table] = data ?? [];
     }
     return c.json(ok({ exported_at: new Date().toISOString(), user_id: user.id, tables: bundle }));
+  })
+  .get('/ai-consent', async (c) => {
+    const user = c.get('user');
+    const db = c.get('db');
+    const { data, error } = await db.from('profiles').select('notification_prefs').eq('id', user.id).single();
+    if (error) throw new HttpError('INTERNAL', 'Could not load AI consent.');
+    const prefs = (data?.notification_prefs ?? {}) as Record<string, unknown>;
+    return c.json(ok(aiConsentSchema.parse(prefs.ai_consent ?? {})));
+  })
+  .patch('/ai-consent', zval('json', updateAiConsentSchema), async (c) => {
+    const user = c.get('user');
+    const db = c.get('db');
+    const patch = c.req.valid('json');
+    const { data: current, error: loadErr } = await db.from('profiles').select('notification_prefs').eq('id', user.id).single();
+    if (loadErr) throw new HttpError('INTERNAL', 'Could not load AI consent.');
+    const prefs = (current?.notification_prefs ?? {}) as Record<string, unknown>;
+    const consent = aiConsentSchema.parse({
+      ...(typeof prefs.ai_consent === 'object' && prefs.ai_consent ? prefs.ai_consent : {}),
+      ...patch,
+      updated_at: new Date().toISOString(),
+    });
+    const { error } = await db
+      .from('profiles')
+      .update({ notification_prefs: { ...prefs, ai_consent: consent } })
+      .eq('id', user.id);
+    if (error) throw new HttpError('INTERNAL', 'Could not save AI consent.');
+    return c.json(ok(consent));
   })
   // POST /me/change-password — for a signed-in user (already reauthenticated by
   // holding a valid JWT). Uses the caller's own client (updateUser on self).

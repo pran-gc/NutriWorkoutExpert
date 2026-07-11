@@ -1,0 +1,40 @@
+# Maestro E2E — sign in → log a strength workout → history shows it.
+# Mac-only, against a running dev build + local Supabase stack.
+#   maestro test .maestro/log-workout.yaml
+appId: com.anonymous.NutriWorkoutExpert
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    text: 'Open'
+    optional: true
+
+- assertVisible: 'Sign in'
+- tapOn: 'Email'
+- inputText: 'test@example.com'
+- tapOn: 'Password'
+- inputText: 'password123!'
+- tapOn: 'Sign in'
+
+- assertVisible: 'Today'
+- tapOn: 'Workouts tab'
+- tapOn: 'History'
+- tapOn: '+ Log a workout'
+- tapOn: 'Workout name'
+- inputText: 'Maestro Workout'
+- tapOn: 'Choose exercise 1'
+- tapOn: 'Search exercises'
+- inputText: 'Bench'
+- tapOn: 'return'
+- scrollUntilVisible:
+    element: '.*Bench Press.*'
+    direction: DOWN
+- tapOn: '.*Bench Press.*'
+- tapOn: 'Reps'
+- inputText: '8'
+- tapOn: 'kg'
+- inputText: '60'
+- tapOn: 'Save workout'
+
+- assertVisible: '.*Maestro Workout.*'
+- assertVisible: '.*Bench Press.*8 reps.*60 kg'

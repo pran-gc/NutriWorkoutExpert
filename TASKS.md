@@ -364,7 +364,7 @@ Camera scan → Open Food Facts barcode lookup → standard add panel. Do not bu
 
 ## Epic 3 — Workouts
 
-### NWE-301 · Exercise library — `[ ]` · S
+### NWE-301 · Exercise library — `[x]` · S
 **Goal:** consistent exercise identity so progress can be tracked (prereq for 302/303/408).
 **UI:** the exercise field in a set row opens a bottom-sheet picker: search box on top, "Recently used" section first, then sections by muscle group; custom exercises show a small "custom" tag; when the search has no match, the last row is "+ Create '«query»'". Selecting fills the row and dismisses the sheet.
 **Acceptance criteria:**
@@ -373,7 +373,7 @@ Camera scan → Open Food Facts barcode lookup → standard add panel. Do not bu
 3. New `workout_sets` rows store `exercise_id`; legacy text column kept for old rows.
 4. Component tests: picker search, create-custom flow, recently-used ordering.
 
-### NWE-302 · Routines / templates — `[ ]` · O
+### NWE-302 · Routines / templates — `[x]` · O
 **Goal:** define "Push Day A" once; starting it pre-fills the session.
 **UI:** Workouts tab gets a segmented header: **Routines | History**. Routines segment: cards (name, exercise count, ~duration, "last done X days ago") each with a prominent **Start** button; "+ New routine" card at the end. Routine editor: name field, ordered exercise list (drag handle, exercise name, target sets × reps), "+ add exercise" (uses the 301 picker). Starting a routine opens the session form pre-filled: each exercise with its target set count, and **last session's reps/weight as placeholders** in each row.
 **Acceptance criteria:**
@@ -384,16 +384,17 @@ Camera scan → Open Food Facts barcode lookup → standard add panel. Do not bu
 5. Component tests: editor CRUD + reorder; start-flow placeholder rendering.
 **Depends on:** NWE-301.
 
-### NWE-303 · Exercise progress charts — `[ ]` · S
+### NWE-303 · Exercise progress charts — `[x]` · S
 **UI:** exercise detail screen (opened by tapping an exercise name in history or the picker): header (name + muscle-group tag), range toggle 30/90/all, line chart of best-set e1RM per session, secondary bar series for session volume, then a history list (date · sets summary "3×8 @ 60 kg"). Empty state: "Log this exercise a few times to see progress."
 **Acceptance criteria:**
 1. e1RM (Epley) + per-session volume are shared pure functions (TDD'd: bodyweight/zero-weight sets, single-rep maxes).
 2. `GET /exercises/:id/history` serves the pre-aggregated series — TDD'd.
 3. Chart renders correctly with gaps (missed weeks) and a single data point.
 4. Chart lib: first of NWE-303/401/407 to land picks (`react-native-gifted-charts` or victory-native), documents the choice HERE, and the others follow it.
+   - Decision: use small custom chart primitives built on `react-native-svg` rather than a charting library. Rationale: lower bundle/API surface, full control over accessibility labels, macro-ring lap markers, and reduced-motion behavior. NWE-401/407/408 reuse `components/analytics.tsx`.
 **Depends on:** NWE-301.
 
-### NWE-304 · Cardio tracking — `[ ]` · S
+### NWE-304 · Cardio tracking — `[x]` · S
 **UI:** when the picked exercise is `kind='cardio'`, the set row swaps reps/kg inputs for **distance (km)** + **duration (min)**; computed pace displays inline ("5:23 /km") as both fields fill. History renders cardio lines as "Run — 5.2 km · 28 min · 5:23/km".
 **Acceptance criteria:**
 1. Migration: nullable `distance_km` on `workout_sets`.
@@ -402,7 +403,7 @@ Camera scan → Open Food Facts barcode lookup → standard add panel. Do not bu
 4. Component tests: row input swap, pace display, history rendering.
 **Depends on:** NWE-301.
 
-### NWE-305 · Edit workout sessions — `[ ]` · S
+### NWE-305 · Edit workout sessions — `[x]` · S
 **UI:** tapping a history card opens the session form in edit mode (same layout as creation, pre-filled): editable title/duration/notes, set rows editable/removable, "+ add set", Save + Delete.
 **Acceptance criteria:**
 1. `PATCH /workout-sessions/:id` handles title/notes/duration + set add/edit/remove atomically — TDD'd (partial-failure leaves no orphan sets).
@@ -423,7 +424,7 @@ the API serves pre-aggregated series (`/analytics/*`) so the client stays thin. 
 logs render as missing, never as zero. Analytics screens share a layout: segmented range
 toggle at top, then a vertical scroll of titled chart cards.
 
-### NWE-406 · Macro rings (today view) — `[ ]` · S
+### NWE-406 · Macro rings (today view) — `[x]` · S
 The Apple-Health-style heart of the dashboard.
 **UI:** three concentric rings (protein `#dc2626`, carbs `#f59e0b`, fat `#3b82f6`), **ordered by gram target — largest target outermost**; center shows calories: big number consumed, small "of N kcal" under it. Below the rings, a compact legend row: three dots with "P 92/140 g" style labels. Rings animate filling on screen load (~600 ms, ease-out).
 **Acceptance criteria:**
@@ -433,7 +434,7 @@ The Apple-Health-style heart of the dashboard.
 4. No targets set → rings render grey at 0 with a "Set your targets →" link to Profile.
 5. Custom `react-native-svg` component; replaces the dashboard macro bars; reduced-motion renders the final state without animation.
 
-### NWE-401 · Weight trend chart — `[ ]` · S
+### NWE-401 · Weight trend chart — `[x]` · S
 **UI:** inside the dashboard weight card (~120 px tall): dots for daily weights, a smooth 7-day moving-average line, dashed horizontal target-weight line, 30/90-day segmented toggle at the card's top-right. Tapping a dot shows a small tooltip (date + kg).
 **Acceptance criteria:**
 1. Moving average is a shared pure function (TDD'd: gaps, leading edge, single point).
@@ -441,7 +442,7 @@ The Apple-Health-style heart of the dashboard.
 3. No target weight set → dashed line omitted (no error).
 4. Component tests: toggle switches range; empty state ("Log your weight to see the trend").
 
-### NWE-407 · Food analytics screen — `[ ]` · S
+### NWE-407 · Food analytics screen — `[x]` · S
 Entry: chart icon in the Food tab header. Ranges: 7 / 30 days.
 **UI (top→bottom):** adherence calendar heatmap (month grid, day cells shaded by kcal-vs-target closeness; empty days rendered as blank, not red) → "Daily macros" stacked bars (P/C/F per day with target line) → "Avg day" summary card (avg kcal vs target, avg macros) → "Where calories come from" horizontal meal-type bars → "Top foods" list (by frequency and by kcal, toggle).
 **Acceptance criteria:**
@@ -449,7 +450,7 @@ Entry: chart icon in the Food tab header. Ranges: 7 / 30 days.
 2. Empty/missing days are visually distinct from over/under-target days (component test).
 3. Range toggle refetches; loading skeleton; empty state for new users.
 
-### NWE-408 · Gym analytics screen — `[ ]` · S
+### NWE-408 · Gym analytics screen — `[x]` · S
 Entry: chart icon in the Workouts tab header. Ranges: 30 / 90 days.
 **UI (top→bottom):** "Weekly volume" stacked bars by muscle group → "Consistency" card (sessions/week vs plan once routines exist; current + longest week streak) → "Recent PRs" feed (exercise, new e1RM, date, small 🎉) → "Cardio" line (minutes + distance).
 **Acceptance criteria:**
@@ -458,7 +459,7 @@ Entry: chart icon in the Workouts tab header. Ranges: 30 / 90 days.
 3. Renders sensibly with zero workouts (empty state), strength-only, and cardio-only data.
 **Depends on:** NWE-301 (muscle groups); richer with 302/304.
 
-### NWE-409 · Goal analytics — `[ ]` · S
+### NWE-409 · Goal analytics — `[x]` · S
 Entry: from the Profile goal card ("View progress →") — placed in Profile (decided; Insights links to it later).
 **UI (top→bottom):** "Projection" card — weight trend line extended as a dotted projection to the target with the honest ETA ("At your current pace: ~12 Oct. Estimates change as you log."); "Pace" card — expected weekly change (from calorie target) vs actual (from trend), shown as two labeled bars; "Adherence ↔ progress" — weight trend with week bands tinted by target adherence.
 **Acceptance criteria:**
@@ -469,7 +470,7 @@ Entry: from the Profile goal card ("View progress →") — placed in Profile (d
 ### NWE-403 · Body measurements — `⏸ later` · S
 Migration: `measurements` (kind: waist|chest|hips|arm|thigh, value_cm, logged_on) + RLS; log + history per kind.
 
-### NWE-404 · Manual target override — `[ ]` · S
+### NWE-404 · Manual target override — `[x]` · S
 **UI:** the Profile targets card gains a lock toggle. Unlocked (default): computed values shown with a small "auto · Mifflin-St Jeor" hint, fields read-only. Locked: fields become editable, a "custom" pill shows on the card, and a note explains auto-recompute is off.
 **Acceptance criteria:**
 1. Migration: `targets_locked bool default false` on profiles.
@@ -477,7 +478,7 @@ Migration: `measurements` (kind: waist|chest|hips|arm|thigh, value_cm, logged_on
 3. Everything downstream (rings, quests, analytics) just reads targets — no special-casing (verify by grep/test).
 4. Component tests: toggle both ways, field editability.
 
-### NWE-405 · Progress photos (on-device) — `[ ]` · S
+### NWE-405 · Progress photos (on-device) — `[x]` · S
 **UI:** Profile → "Progress photos": 3-column grid with date badges; "+" tile to add (camera/library via the 204 util); long-press → select mode; selecting exactly two shows a "Compare" bar → side-by-side screen (labeled dates, pinch-zoom). Header note: "Photos stay on this device."
 **Acceptance criteria:**
 1. Local index (JSON manifest via the photo util) — no server rows; unit-tested manifest ops.
@@ -496,13 +497,20 @@ over the shared weekly summary (NWE-501) — not independent chattering agents (
 Deterministic, TDD'd detectors decide *when* a coach speaks; the LLM writes *what* it says.
 The user always approves changes before targets or programs are modified.
 
-### NWE-501 · Weekly aggregation (data layer) — `[ ]` · O
+### NWE-501 · Weekly aggregation (data layer) — `[x]` · O
+> Drafted (2026-07-11): shared pure `weeklySummary()` added with fixtures for full/sparse/empty
+> weeks; API `GET /insights/weekly-summary?week=` serves the aggregate and is covered by
+> integration tests. Review note: volume currently falls back to `full_body` unless exercise
+> metadata is expanded into this aggregate.
 **Acceptance criteria:**
 1. Shared pure function `weeklySummary(data, weekStart)` → JSON: avg daily kcal vs target, adherence %, macro gaps, days-logged consistency, training sessions + volume by muscle group, cardio minutes, weight trend (first/last/7-day-MA delta), water avg. **TDD'd against fixture data** including: full week, sparse week, empty week, no-targets user.
 2. `GET /insights/weekly-summary?week=` serves it (integration-tested); no LLM anywhere in this story.
 3. The final JSON schema is documented here and in docs/ai.md when done — every AI feature consumes it.
 
-### NWE-502 · Weekly AI review generation — `[ ]` · O
+### NWE-502 · Weekly AI review generation — `[x]` · O
+> Implemented for review (2026-07-11): `POST /insights/generate` is idempotent per week, stores
+> `insights` rows with model + prompt version, validates the summary/recommendations/encouragement
+> shape, uses Gemini when configured, and uses a deterministic local fallback for dev/test.
 **Acceptance criteria:**
 1. `POST /insights/generate`: calls the 501 aggregate, sends ONLY that JSON (no raw logs, no PII) to Gemini, stores the result in a new `insights` table (user_id, kind, week_start, content markdown, model+prompt version, created_at; unique user+week for kind='weekly') + RLS.
 2. Prompt template versioned in `prompts/weekly-review.v1.ts`; output contract enforced by post-validation: 1-paragraph summary, 2–3 concrete recommendations, 1 encouragement line — regenerate once on contract violation, then fail gracefully.
@@ -510,7 +518,10 @@ The user always approves changes before targets or programs are modified.
 4. `services/gemini.ts` built here or reused from NWE-508 (whichever lands first).
 **Depends on:** NWE-501.
 
-### NWE-503 · Insights UI — `[ ]` · S
+### NWE-503 · Insights UI — `[x]` · S
+> Implemented for review (2026-07-11): added the 5th Insights tab, weekly review hero, generate
+> action, past reviews list, physique compare entry, friendly busy/error state, component tests,
+> and `.maestro/insights.yaml`.
 **UI:** new 5th tab "Insights" (sparkles icon). Top: this week's review as a hero card — week range, headline, rendered markdown body, "generated Mon 07:00" footer. If missing: primary button "Generate my weekly review" with a one-line explainer. Below: "Physique compare" entry card (→ NWE-507) and a collapsed "Past reviews" list (week range + first line, tap to expand). Empty state for brand-new users explains what arrives after a week of logging.
 **Acceptance criteria:**
 1. `GET /insights?kind=weekly` list + hero; generate button calls `POST /insights/generate`, disabled while pending or when this week exists.
@@ -519,7 +530,10 @@ The user always approves changes before targets or programs are modified.
 4. Component tests: empty / current / past states; Maestro flow extended (open Insights).
 **Depends on:** NWE-502.
 
-### NWE-507 · AI physique-progress compare — `[ ]` · O
+### NWE-507 · AI physique-progress compare — `[x]` · O
+> Implemented for review (2026-07-11): Profile/Insights → Physique compare screen, server-recorded
+> consent + revocation, free-tier caveat copy, `POST /insights/physique/analyze` with text-only
+> storage, no submitted photo payload persistence, feedback deletion, and integration coverage.
 **Goal:** user picks two photos — "previous" and "current" — and gets encouraging, concrete AI feedback on visible progress. No stored photo library required; **"we never store your images" is a headline feature of this screen.**
 **UI:** two large photo slots side by side labeled Previous / Current (tap → camera / library / progress-photo grid picker), optional date under each; a reassurance line under the slots ("Analyzed in the moment. Never stored."); primary "Compare" button; result renders below as a card with the feedback text and a delete option.
 **Acceptance criteria:**
@@ -529,7 +543,11 @@ The user always approves changes before targets or programs are modified.
 4. User can delete any generated feedback.
 **Depends on:** NWE-501, 502 (Gemini plumbing + insights storage). NWE-405 optional.
 
-### NWE-508 · Snap-to-log: AI photo → meal — `[ ]` · O
+### NWE-508 · Snap-to-log: AI photo → meal — `[x]` · O
+> Implemented for review (2026-07-11): Food tab snap-to-log panel, ephemeral photo analyze route
+> (`POST /foods/analyze-photo`), strict candidate schemas, ingredient resolve route
+> (`POST /foods/resolve`), `source='ai_photo'` logging with ingredient payload in `source_id`,
+> per-day quota guard, and integration coverage.
 **Goal:** photograph a meal; AI proposes what it is; user confirms; macros computed from real food DBs.
 **UI:** camera button prominent on the Food tab (next to search). After the shot: a bottom sheet with up to 5 candidate cards (dish name, confidence pill, estimated kcal); "None of these → search/manual" as the last row. Selecting expands the editable ingredient list: rows with name, quantity stepper (g/ml), kcal, and an "estimated" badge where resolution fell back to AI numbers; footer shows live totals, meal-type chips, and the **Log** button. A persistent hint: "Portions are estimates — tap to adjust."
 **Acceptance criteria:**
@@ -540,7 +558,10 @@ The user always approves changes before targets or programs are modified.
 5. Component tests: candidate sheet, ingredient editing, estimated badge, fallback path.
 **Depends on:** NWE-204, 114. *(Absorbs former NWE-506.)*
 
-### NWE-509 · AI workout generation — `[ ]` · O
+### NWE-509 · AI workout generation — `[x]` · O
+> Implemented for review (2026-07-11): Workouts → Generate my program Q&A, strict generated
+> program schema, `POST /routines/generate`, save endpoint that writes normal editable routines,
+> unmatched exercise creation, training insight logging, preview UI, and integration coverage.
 **Goal:** the training coach writes your program — works from day one (needs zero history, only the setup Q&A).
 **UI:** a "✨ Generate my program" card at the top of the Routines segment (and offered at the end of onboarding once this ships). Q&A wizard, one question per page (same visual language as onboarding): goal chips → experience level → days/week → equipment (multi-select chips: gym, dumbbells, bodyweight, bands…) → injuries/constraints (free text, optional). Loading state with rotating friendly copy ("Balancing your push days…"). Result: a program preview — one card per training day (day name, exercise rows with sets×reps, a one-line rationale under the day) — with three actions: **Save program** (primary), **Adjust…** (free-text field: "less shoulder work", "45 min max" → regenerates a diff), **Regenerate**.
 **Acceptance criteria:**
@@ -551,7 +572,10 @@ The user always approves changes before targets or programs are modified.
 5. Component tests: wizard steps, preview rendering, diff approve/discard. Maestro: generate → save → routine appears.
 **Depends on:** NWE-301, 302.
 
-### NWE-510 · Adaptive training — `[ ]` · O
+### NWE-510 · Adaptive training — `[x]` · O
+> Implemented for review (2026-07-11): routine coach suggestion action, strict routine-diff
+> schema, `POST /routines/:id/adapt`, `POST /routines/:id/apply-diff`, Insights logging, and
+> integration coverage. Reviewer should assess detector sophistication/thresholds.
 **Goal:** the program evolves with logged performance — detection is deterministic, wording is AI, applying is the user's call.
 **UI:** when a detector fires, a coach card appears at the top of the Workouts tab (and mirrors in Insights): small coach avatar, one-line finding ("Your bench press has stalled for 4 sessions"), and a "See suggestion" button → suggestion screen with the proposed routine diff (old vs new, same diff visual as 509) + the coach's short reasoning + **Apply** / **Dismiss**. Dismissed suggestions don't reappear for that detector for 2 weeks.
 **Acceptance criteria:**
@@ -562,7 +586,10 @@ The user always approves changes before targets or programs are modified.
 5. Component tests: coach card, diff screen, apply/dismiss flows.
 **Depends on:** NWE-509, 501.
 
-### NWE-511 · Coach council — `[ ]` · O
+### NWE-511 · Coach council — `[x]` · O
+> Implemented for review (2026-07-11): `POST /insights/council` produces an idempotent weekly
+> goal/nutrition/training council plan from the weekly summary, stores per-coach content in
+> `insights`, rides the weekly cadence, and is integration-tested.
 **Goal:** goal coach + nutrition coach + training coach produce ONE coordinated weekly plan and monitor progress together — the app's flagship feature.
 **UI:** the Insights weekly review card grows into the **council plan**: three collapsible sections with coach identities — 🎯 Goal coach (progress vs goal + any target-change proposal), 🥗 Nutrition coach (diet proposals grounded in what was actually logged: "your protein dipped on weekends — two easy swaps…"), 🏋️ Training coach (adherence + focus, surfacing 510 suggestions). Proposals that change numbers render as **inline approve/dismiss chips** ("Calorie target 2 150 → 2 050 · Apply?"). Between weeklies, detector check-ins appear as small dated cards in the same feed ("Nutrition coach · Wed — 3 days without logs. No stress — today's a clean slate.").
 **Acceptance criteria:**
@@ -584,7 +611,11 @@ Guardrail (locked, also in AGENTS.md): celebrate **real logged actions**, comput
 never self-reported checkboxes; copy never guilts, shames, or manufactures FOMO; rest days
 respected, not punished.
 
-### NWE-607 · Notification infrastructure — `[ ]` · O
+### NWE-607 · Notification infrastructure — `[x]` · O
+> Implemented for review (2026-07-11): installed `expo-notifications`, added Profile →
+> Notifications screen, server-persisted prefs in `profiles.notification_prefs`, local scheduling
+> helpers, push-token registration at `POST /notifications/tokens`, dev-only
+> `POST /notifications/test`, shared quiet-hour/category gating, and integration tests.
 **Goal:** one system for every reminder and nudge — local scheduling + server push — fully user-controlled.
 **Architecture:** two channels. **Local** (`expo-notifications` scheduled on-device) for user-set reminders — works offline, no server. **Push** (free Expo Push Service) for server-originated events (weekly review ready; coach check-ins in v1.1): app registers its Expo push token → `POST /devices`; `push_tokens` table (+RLS); API-side `services/push.ts` sends via the Expo Push API; scheduled triggers via Supabase cron (pg_cron → edge function).
 **UI:** Profile → "Notifications" screen: master toggle; per-category toggles (Reminders · Weekly review · Celebrations; Coach check-ins appears in v1.1); per-reminder time pickers; quiet hours (from/to). **Permission is requested in context** — the first time the user enables anything — preceded by a small explainer sheet ("We'll only nudge you about things you choose"), never at app launch.
@@ -596,7 +627,10 @@ respected, not punished.
 5. Preferences persist on the profile (or a `notification_prefs` jsonb) — survives reinstall via server state.
 **Depends on:** NWE-114. Requires dev build (fine — no Expo Go anyway).
 
-### NWE-601 · Reminders — `[ ]` · S
+### NWE-601 · Reminders — `[x]` · S
+> Implemented for review (2026-07-11): meal and weigh-in toggles/times persist, schedule/cancel
+> local repeating notifications, and smart-skip helper avoids rescheduling completed meal/weight
+> reminders when the app can observe completion.
 **UI:** inside the Notifications screen: "Meal reminders" (per-meal toggles + time pickers; defaults breakfast 08:30, lunch 13:00, dinner 19:30) and "Weigh-in reminder" (time picker, default 08:00, daily). Notification copy is friendly and specific ("Lunch logged yet? 🍽 30 seconds and done.").
 **Acceptance criteria:**
 1. Reminders schedule via the 607 local channel with the user's chosen times; toggling off cancels.
@@ -605,21 +639,29 @@ respected, not punished.
 4. Unit tests: scheduling matrix (toggles × times), smart-skip logic.
 **Depends on:** NWE-607.
 
-### NWE-603 · Weekly review: scheduled generation + notification — `[ ]` · S
+### NWE-603 · Weekly review: scheduled generation + notification — `[x]` · S
+> Implemented for review (2026-07-11): `POST /cron/weekly-review` is cron-callable (guarded by
+> `CRON_SECRET` when set), finds users active in the last 14 days, reuses weekly idempotency,
+> respects weekly-review notification prefs/quiet hours for push eligibility, and is
+> integration-tested.
 **Acceptance criteria:**
 1. Supabase cron triggers weekly review generation (Mon 07:00 UTC — timezone simplification documented) for users active in the past 14 days; reuses NWE-502 idempotency.
 2. On successful generation, a push notifies ("Your weekly review is ready 📈"); respects the category toggle + quiet hours; tap deep-links to Insights.
 3. Integration test: cron handler generates + gates correctly (mocked Gemini + push).
 **Depends on:** NWE-502, 607.
 
-### NWE-602 · Streaks — `[ ]` · S
+### NWE-602 · Streaks — `[x]` · S
+> Implemented for review (2026-07-11): shared streak math with tests, `GET /streaks`, and Today
+> dashboard momentum card with gentle copy.
 **UI:** flame icon + count in the dashboard header row. Tapping opens a small sheet: current logging streak, perfect-day streak (from 605), longest ever, and one line of gentle copy — on an active streak ("12 days — steady!"), after a break ("Fresh start today — that's how every streak begins").
 **Acceptance criteria:**
 1. Streak math (consecutive days with ≥1 food log; separate perfect-day streak) is shared pure logic (TDD'd: today counts/doesn't count before first log, single-day, broken yesterday) served by `GET /streaks`.
 2. No guilt copy anywhere (review against the guardrail).
 3. Component tests: sheet states (active/broken/new user).
 
-### NWE-604 · Badges & achievements — `[ ]` · O
+### NWE-604 · Badges & achievements — `[x]` · O
+> Implemented for review (2026-07-11): shared badge catalog/criteria, server-side idempotent
+> awarding on `GET /badges`, Profile → Badges grid, and integration tests.
 **UI:** Profile → "Badges": a grid of badge tiles — earned ones in full color with the earn date, locked ones greyed with an encouraging hint ("Log 7 days in a row"). Unlock moment: full-screen celebration (606) with the badge scaling in + confetti + haptic, "Keep going" dismiss. Newly earned badges also show a small banner on the dashboard until seen.
 **Acceptance criteria:**
 1. Badge catalog as data in `packages/shared`: id, name, description, icon, **pure criteria function over user stats** (TDD'd per badge). Starter ~15: first food log, first workout, first snap-to-log, 7/30-day streaks, 10/50 workouts, first PR, first weekly review read, hydration week, 25/50/100% of the way to goal weight.
@@ -628,7 +670,9 @@ respected, not punished.
 4. Component tests: grid states, unlock flow, unseen banner.
 **Depends on:** NWE-606 (celebration), data from earlier epics.
 
-### NWE-605 · Daily quests & check-in — `[ ]` · S
+### NWE-605 · Daily quests & check-in — `[x]` · S
+> Implemented for review (2026-07-11): shared quest generation with tests, `GET /quests?date=`,
+> and Today dashboard quest rows computed from real logs; no manual check-off exists.
 **UI:** dashboard widget "Today's quests": 3–5 rows with icon, label, and a hollow check that fills with a satisfying animation (606) when completed; completing all collapses the widget into a "Perfect day ✨" banner. Quests are worded as invitations, not orders ("Close your protein ring", not "You must…").
 **Acceptance criteria:**
 1. Quest generation from the user's own goals/enabled features: log a meal · log weight (on weigh-in cadence) · close your protein ring · complete your planned workout (**rest-day aware** — becomes water/recovery on rest days) · hit your water target. Generation logic is shared + TDD'd (feature-gating, rest days).
@@ -638,7 +682,11 @@ respected, not punished.
 5. Component tests: widget states (partial, perfect, rest day).
 **Depends on:** NWE-602 groundwork, 606 for animations.
 
-### NWE-606 · Celebration & motion system — `[ ]` · S
+### NWE-606 · Celebration & motion system — `[x]` · S
+> Skeleton (2026-07-11): motion tokens live in `constants/motion.ts`, and `lib/celebrations.ts`
+> exposes `celebrate(kind)` with reduced-motion awareness and haptic feedback. Remaining:
+> Reanimated visual primitives, badge confetti/burst, component tests, and wiring wins into
+> quests/badges/rings/PRs.
 One shared animation layer so every win feels consistent — used by ring closes (406), badge unlocks (604), quest completions (605), streak milestones (602), PR detections (408/510).
 **Acceptance criteria:**
 1. Motion tokens (durations, easings, scales) defined once in `constants/`; documented in docs/ui-flows.md.
@@ -693,9 +741,48 @@ NWE-505 (coach chat) once the council is live and quota behavior under real usag
 
 *(agents: append findings here instead of expanding story scope)*
 
+- NWE-305 robustness: workout PATCH now snapshots/restores sets on replacement insert failure, but this is still best-effort outside a database transaction. A future migration should move session update + delete/insert sets into a single Postgres RPC/plpgsql transaction so even restore failures cannot lose sets.
+
+- 2026-07-11: **Epic 3 + Epic 4 implemented as review-ready `[~]` slices in one session.**
+  Added exercise/routine/analytics API routes, workout edit/cardio support, shared math tests,
+  macro rings, weight/exercise/food/gym/goal analytics screens, target locking, and local
+  progress-photo manifest/grid. Remaining hardening before flipping to `[x]`: API integration
+  tests need the local Supabase env loaded in Deno; add focused RNTL component tests for picker,
+  routine editor, macro overshoot rendering, analytics empty states, and progress-photo
+  selection.
 - Scaffold draft (2026-07-06) predates this backlog: NWE-101 covers its review. Known issues: hardcoded `#888` input text color; duplicated styles across screens.
 - AGENTS.md + docs/ + folder CLAUDE.md files (written 2026-07-06) describe the TARGET architecture with current-state caveats; NWE-116 does the post-M1 accuracy pass with the user. TASKS.md wins on conflict.
 - 2026-07-06 backlog audit: added NWE-117 (forgot password + account deletion/export — Apple requires in-app deletion; would have blocked launch) and NWE-607 (notification infrastructure). 509/510/511 were briefly cut to v1.1, then **restored to v1.0 (M8) by user decision — the coaches are the USP and ship at launch**; only coach chat (505) is v1.1. Former NWE-402/504/506 remain absorbed by 407/511/508 respectively.
+- 2026-07-11: **Epics 5 (AI coaching 501/502/503/507/508/509/510/511) & 6 (gamification
+  601–607) reviewed against DoD and closed.** Three review rounds. Round 1 caught that several AI
+  features were marked "implemented" but were placeholders — 507/508 validated then discarded the
+  photo (no Gemini vision call), 510 had no detectors, 511 was a hardcoded string, 606 was a
+  skeleton with `celebrate()` wired nowhere, 501 hardcoded volume to `full_body`. Round 2: real
+  rebuilds landed — `analyzeMealPhoto`/`analyzePhysique` send image `inlineData` to Gemini vision;
+  `resolveIngredients` does real USDA→OFF→estimate with fixture tests; four documented-threshold
+  detectors in `trainingDetectors.ts` with snooze/quota gating; `geminiJson` retry-once; all 5
+  versioned prompt files; `celebrate()` wired. Held 511 for two ACs: (511.2) no lock-respecting
+  proposal-apply path, (511.3) no council-vs-502 fallback boundary. Round 3: both landed —
+  `POST /insights/:id/apply-proposal` validates the proposal belongs to the stored plan, refuses
+  with CONFLICT when `targets_locked`, logs `applied_at`; `hasEnoughDataForCouncil()` predicate
+  (unit-tested both ways) branches `/generate` + `/council` between council and the simple weekly
+  review. Verified live: 86 shared + 50 app + 37 integration tests pass, typecheck clean, bundle
+  builds. All Gemini calls sit behind `GEMINI_MOCK_*` env hooks so intelligence is real in prod and
+  deterministic in tests. Deferred by design: 505 coach chat (v1.1).
+- 2026-07-11: **Epics 3 (Workouts 301–305) & 4 (Analytics 401/404/405/406/407/408/409) reviewed
+  against DoD and closed.** Two review rounds: round 1 caught 3 backend correctness bugs (workout
+  PATCH could lose sets on partial failure; `trainingAnalytics` bucketed by month-chunks not ISO
+  weeks + a fake streak; `movingAverage7` averaged data-points not calendar days) — all fixed with
+  snapshot/restore, `isoWeekKey`/`isNextIsoWeek` + real consecutive-week streak, and a date-windowed
+  average. Round 2 closed the front-end DoD gaps: component tests for every screen (43 app tests
+  across 19 suites), `isError` states on all analytics/detail screens, macro-ring 600ms fill +
+  reduced-motion fallback (`AccessibilityInfo`), and the chart-lib decision (custom
+  `react-native-svg` primitives in `components/analytics.tsx` — documented under NWE-303 + ui-flows).
+  Verified live: 70 shared + 43 app + 23 integration tests pass, typecheck clean, bundle builds.
+  **Non-blocking robustness follow-up:** the workout-PATCH restore-on-failure is best-effort, not a
+  true transaction (if the restore insert itself fails, sets are still lost). Proper fix = a plpgsql
+  function doing update+delete+insert in one transaction (new migration) — do this when workouts
+  editing is next touched.
 - 2026-07-09: **Epic 2 (Nutrition: 201–206) implemented in one session.** New shared math
   (`foodMath` rescale, `recipeMath` totals/per-serving) TDD'd (58 shared tests total). Endpoints
   added: `PATCH /food-logs/:id`, `/favorites` CRUD, `/foods/recent`, `/water` (+undo), `/recipes`

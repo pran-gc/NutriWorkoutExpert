@@ -5,19 +5,40 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type {
   CreateFavoriteInput,
+  CreateExerciseInput,
   CreateFoodLogInput,
   CreateWorkoutSessionInput,
+  EarnedBadge,
+  Exercise,
   FavoriteFood,
   FoodLog,
   FoodSearchResult,
+  GenerateInsightInput,
+  GeneratedProgram,
+  Insight,
+  NotificationPrefs,
+  AiConsent,
+  AiMealCandidate,
+  ApplyCouncilProposalInput,
+  AnalyzeFoodPhotoInput,
+  AnalyzePhysiqueInput,
+  ResolvedIngredient,
+  ResolveFoodInput,
+  RoutineDiff,
+  SaveGeneratedProgramInput,
+  RegisterPushTokenInput,
   LogRecipeInput,
   Profile,
   RecentFood,
   Recipe,
+  Routine,
+  UpsertRoutineInput,
+  UpdateWorkoutSessionInput,
   UpdateFoodLogInput,
   UpdateProfileInput,
   UpsertRecipeInput,
   WeightLog,
+  WeeklySummary,
   WorkoutSession,
 } from '@shared';
 
@@ -291,7 +312,22 @@ export function useCreateWorkout() {
   return useMutation({
     mutationFn: (input: CreateWorkoutSessionInput) =>
       unwrap<WorkoutSession>(rpc.api.workouts.$post(arg({ json: input }))),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['workouts'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['workouts'] });
+      qc.invalidateQueries({ queryKey: ['analytics'] });
+    },
+  });
+}
+
+export function useUpdateWorkout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpdateWorkoutSessionInput }) =>
+      unwrap<WorkoutSession>(rpc.api.workouts[':id'].$patch(arg({ param: { id }, json: input }))),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['workouts'] });
+      qc.invalidateQueries({ queryKey: ['analytics'] });
+    },
   });
 }
 
@@ -300,7 +336,118 @@ export function useDeleteWorkout() {
   return useMutation({
     mutationFn: (id: string) =>
       unwrap<{ id: string }>(rpc.api.workouts[':id'].$delete(arg({ param: { id } }))),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['workouts'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['workouts'] });
+      qc.invalidateQueries({ queryKey: ['analytics'] });
+    },
+  });
+}
+
+// ── Exercises (NWE-301/303) ────────────────────────────────────────────────
+export function useExercises(q = '') {
+  const hasSession = useHasSession();
+  return useQuery({
+    queryKey: ['exercises', q],
+    queryFn: () => unwrap<(Exercise & { recent_at?: string | null })[]>(rpc.api.exercises.$get(arg({ query: { q } }))),
+    enabled: hasSession,
+  });
+}
+
+export function useCreateExercise() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateExerciseInput) =>
+      unwrap<Exercise>(rpc.api.exercises.$post(arg({ json: input }))),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['exercises'] }),
+  });
+}
+
+export function useExerciseHistory(id: string | null, range: '30' | '90' | 'all' = '90') {
+  const hasSession = useHasSession();
+  return useQuery({
+    queryKey: ['exercises', id, 'history', range],
+    queryFn: () =>
+      unwrap<{ logged_on: string; best_e1rm: number; volume: number; summary: string }[]>(
+        rpc.api.exercises[':id'].history.$get(arg({ param: { id }, query: { range } }))
+      ),
+    enabled: hasSession && Boolean(id),
+  });
+}
+
+// ── Routines (NWE-302) ─────────────────────────────────────────────────────
+export function useRoutines() {
+  const hasSession = useHasSession();
+  return useQuery({
+    queryKey: ['routines'],
+    queryFn: () => unwrap<Routine[]>(rpc.api.routines.$get()),
+    enabled: hasSession,
+  });
+}
+
+export function useCreateRoutine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpsertRoutineInput) =>
+      unwrap<Routine>(rpc.api.routines.$post(arg({ json: input }))),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['routines'] }),
+  });
+}
+
+export function useUpdateRoutine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpsertRoutineInput }) =>
+      unwrap<Routine>(rpc.api.routines[':id'].$put(arg({ param: { id }, json: input }))),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['routines'] }),
+  });
+}
+
+export function useDeleteRoutine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      unwrap<{ id: string }>(rpc.api.routines[':id'].$delete(arg({ param: { id } }))),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['routines'] }),
+  });
+}
+
+export function useRoutinePrefill(id: string | null) {
+  const hasSession = useHasSession();
+  return useQuery({
+    queryKey: ['routines', id, 'prefill'],
+    queryFn: () =>
+      unwrap<{ routine: Routine; exercises: any[] }>(
+        rpc.api.routines[':id'].prefill.$get(arg({ param: { id } }))
+      ),
+    enabled: hasSession && Boolean(id),
+  });
+}
+
+// ── Analytics (NWE-407/408/409) ────────────────────────────────────────────
+export function useFoodAnalytics(params: { from: string; to: string }) {
+  const hasSession = useHasSession();
+  return useQuery({
+    queryKey: ['analytics', 'food', params.from, params.to],
+    queryFn: () => unwrap<any>(rpc.api.analytics.food.$get(arg({ query: params }))),
+    enabled: hasSession,
+  });
+}
+
+export function useTrainingAnalytics(params: { from: string; to: string }) {
+  const hasSession = useHasSession();
+  return useQuery({
+    queryKey: ['analytics', 'training', params.from, params.to],
+    queryFn: () => unwrap<any>(rpc.api.analytics.training.$get(arg({ query: params }))),
+    enabled: hasSession,
+  });
+}
+
+export function useGoalAnalytics() {
+  const hasSession = useHasSession();
+  return useQuery({
+    queryKey: ['analytics', 'goal'],
+    queryFn: () => unwrap<any>(rpc.api.analytics.goal.$get()),
+    enabled: hasSession,
   });
 }
 
@@ -329,5 +476,225 @@ export function useChangePassword() {
 export function useDeleteAccount() {
   return useMutation({
     mutationFn: () => unwrap<{ deleted: boolean }>(rpc.api.me.$delete()),
+  });
+}
+
+// ── Insights (Epic 5) ──────────────────────────────────────────────────────
+export function useInsights() {
+  const hasSession = useHasSession();
+  return useQuery({
+    queryKey: ['insights'],
+    queryFn: () => unwrap<Insight[]>(rpc.api.insights.$get()),
+    enabled: hasSession,
+  });
+}
+
+export function useWeeklySummary(week?: string) {
+  const hasSession = useHasSession();
+  return useQuery({
+    queryKey: ['insights', 'weekly-summary', week ?? null],
+    queryFn: () =>
+      unwrap<WeeklySummary>(
+        rpc.api.insights['weekly-summary'].$get(arg({ query: { week } }))
+      ),
+    enabled: hasSession,
+  });
+}
+
+export function useGenerateWeeklyInsight() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: GenerateInsightInput = {}) =>
+      unwrap<Insight>(rpc.api.insights.generate.$post(arg({ json: input }))),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['insights'] });
+      qc.invalidateQueries({ queryKey: ['badges'] });
+    },
+  });
+}
+
+export function useGenerateCouncilInsight() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: GenerateInsightInput = {}) =>
+      unwrap<Insight>(rpc.api.insights.council.$post(arg({ json: input }))),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['insights'] }),
+  });
+}
+
+export function useApplyCouncilProposal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: ApplyCouncilProposalInput }) =>
+      unwrap<{ insight: Insight; profile: Profile }>(
+        rpc.api.insights[':id']['apply-proposal'].$post(arg({ param: { id }, json: input }))
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['insights'] });
+      qc.invalidateQueries({ queryKey: ['me'] });
+    },
+  });
+}
+
+export function useAnalyzePhysique() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: AnalyzePhysiqueInput) =>
+      unwrap<Insight>(rpc.api.insights.physique.analyze.$post(arg({ json: input }))),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['insights'] }),
+  });
+}
+
+export function useDeleteInsight() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      unwrap<{ id: string }>(rpc.api.insights[':id'].$delete(arg({ param: { id } }))),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['insights'] }),
+  });
+}
+
+export function useAiConsent() {
+  const hasSession = useHasSession();
+  return useQuery({
+    queryKey: ['me', 'ai-consent'],
+    queryFn: () => unwrap<AiConsent>(rpc.api.me['ai-consent'].$get()),
+    enabled: hasSession,
+  });
+}
+
+export function useUpdateAiConsent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Partial<AiConsent>) =>
+      unwrap<AiConsent>(rpc.api.me['ai-consent'].$patch(arg({ json: input }))),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me', 'ai-consent'] }),
+  });
+}
+
+export function useAnalyzeFoodPhoto() {
+  return useMutation({
+    mutationFn: (input: AnalyzeFoodPhotoInput) =>
+      unwrap<AiMealCandidate[]>(rpc.api.foods['analyze-photo'].$post(arg({ json: input }))),
+  });
+}
+
+export function useResolveFood() {
+  return useMutation({
+    mutationFn: (input: ResolveFoodInput) =>
+      unwrap<{
+        dish_name: string;
+        ingredients: ResolvedIngredient[];
+        totals: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
+      }>(rpc.api.foods.resolve.$post(arg({ json: input }))),
+  });
+}
+
+export function useGenerateProgram() {
+  return useMutation({
+    mutationFn: (input: {
+      goal: string;
+      experience: 'beginner' | 'intermediate' | 'advanced';
+      days_per_week: number;
+      equipment: string[];
+      constraints?: string;
+      adjustment?: string;
+    }) => unwrap<GeneratedProgram>(rpc.api.routines.generate.$post(arg({ json: input }))),
+  });
+}
+
+export function useSaveGeneratedProgram() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SaveGeneratedProgramInput) =>
+      unwrap<Routine[]>(rpc.api.routines.generated.save.$post(arg({ json: input }))),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['routines'] });
+      qc.invalidateQueries({ queryKey: ['insights'] });
+    },
+  });
+}
+
+export function useAdaptRoutine() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      unwrap<{ insight: Insight; diff: RoutineDiff }>(
+        rpc.api.routines[':id'].adapt.$post(arg({ param: { id } }))
+      ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['insights'] }),
+  });
+}
+
+export function useApplyRoutineDiff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      unwrap<Insight>(rpc.api.routines[':id']['apply-diff'].$post(arg({ param: { id } }))),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['routines'] });
+      qc.invalidateQueries({ queryKey: ['insights'] });
+    },
+  });
+}
+
+// ── Gamification + notifications (Epic 6) ─────────────────────────────────
+export function useStreaks(date?: string) {
+  const hasSession = useHasSession();
+  return useQuery({
+    queryKey: ['streaks', date ?? null],
+    queryFn: () => unwrap<{ food: { current: number; longest: number; lastLoggedOn: string | null } }>(
+      rpc.api.streaks.$get(arg({ query: { date } }))
+    ),
+    enabled: hasSession,
+  });
+}
+
+export function useQuests(date?: string) {
+  const hasSession = useHasSession();
+  return useQuery({
+    queryKey: ['quests', date ?? null],
+    queryFn: () => unwrap<{ id: string; title: string; target: number; progress: number; complete: boolean }[]>(
+      rpc.api.quests.$get(arg({ query: { date } }))
+    ),
+    enabled: hasSession,
+  });
+}
+
+export function useBadges() {
+  const hasSession = useHasSession();
+  return useQuery({
+    queryKey: ['badges'],
+    queryFn: () =>
+      unwrap<{
+        catalog: { id: string; title: string; description: string }[];
+        earned: EarnedBadge[];
+      }>(rpc.api.badges.$get(arg({ query: {} }))),
+    enabled: hasSession,
+  });
+}
+
+export function useNotificationPrefs() {
+  const hasSession = useHasSession();
+  return useQuery({
+    queryKey: ['notifications', 'prefs'],
+    queryFn: () => unwrap<NotificationPrefs>(rpc.api.notifications.prefs.$get()),
+    enabled: hasSession,
+  });
+}
+
+export function useUpdateNotificationPrefs() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Partial<NotificationPrefs>) =>
+      unwrap<NotificationPrefs>(rpc.api.notifications.prefs.$patch(arg({ json: input }))),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications', 'prefs'] }),
+  });
+}
+
+export function useRegisterPushToken() {
+  return useMutation({
+    mutationFn: (input: RegisterPushTokenInput) =>
+      unwrap<unknown>(rpc.api.notifications.tokens.$post(arg({ json: input }))),
   });
 }

@@ -1,0 +1,43 @@
+# Maestro E2E — the NWE-114 critical path: sign in → log a food → dashboard totals
+# reflect it. Mac-only, against a running dev build + local Supabase stack.
+#   maestro test .maestro/log-food.yaml
+#
+# Needs a pre-existing, confirmed account (create it once in the app, or via
+# `supabase` admin) whose profile is complete so it lands on the tabs, not onboarding.
+appId: com.anonymous.NutriWorkoutExpert
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    text: 'Open'
+    optional: true
+
+# Sign in. No hideKeyboard — the simulator keyboard can't be dismissed that way;
+# the Sign in button stays reachable under the keyboard (KeyboardAvoidingView).
+- assertVisible: 'Sign in'
+- tapOn: 'Email'
+- inputText: 'test@example.com'
+- tapOn: 'Password'
+- inputText: 'password123!'
+- tapOn: 'Sign in'
+
+# Land on the app, go to the Food tab
+- assertVisible: 'Today'
+- tapOn: 'Food tab'
+
+# Log a manual food
+- tapOn: 'Add food manually'
+- tapOn: 'Food name'
+- inputText: 'Maestro Test Meal'
+- tapOn: 'kcal'
+- eraseText: 10
+- inputText: '321'
+- tapOn: 'Protein g'
+- scrollUntilVisible:
+    element: 'Log food'
+    direction: DOWN
+- tapOn: 'Log food'
+- tapOn: 'Food'
+
+# The entry appears in today's log.
+- assertVisible: '.*Maestro Test Meal.*321 kcal'

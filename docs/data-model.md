@@ -34,13 +34,13 @@ erDiagram
     profiles ||--o{ food_logs : ""
     profiles ||--o{ workout_sessions : ""
     workout_sessions ||--o{ workout_sets : ""
-    exercises ||--o{ workout_sets : "exercise_id (🚧301)"
+    exercises ||--o{ workout_sets : "exercise_id (✅301)"
     profiles ||--o{ water_logs : "🚧203"
     profiles ||--o{ favorite_foods : "🚧201"
     profiles ||--o{ recipes : "🚧202"
     recipes ||--o{ recipe_items : "🚧202"
-    profiles ||--o{ routines : "🚧302"
-    routines ||--o{ routine_exercises : "🚧302"
+    profiles ||--o{ routines : "✅302"
+    routines ||--o{ routine_exercises : "✅302"
     profiles ||--o{ insights : "🚧502"
     profiles ||--o{ measurements : "🚧403 later"
 ```
@@ -67,10 +67,10 @@ photo exists only on the device that logged it** (🚧204).
 
 ### ✅ workout_sessions / ✅ workout_sets
 Sessions: `title`, `notes`, `duration_min`, `logged_on`.
-Sets: `session_id (cascade)`, `user_id`, `exercise text`, `set_number`, `reps`, `weight_kg`,
-`duration_min`. Planned: `exercise_id` FK (🚧301), `distance_km` for cardio (🚧304).
+Sets: `session_id (cascade)`, `user_id`, `exercise_id`, `exercise text`, `set_number`, `reps`,
+`weight_kg`, `duration_min`, `distance_km`. Text is kept alongside the FK for history fidelity.
 
-### 🚧 exercises (NWE-301)
+### ✅ exercises (NWE-301)
 `user_id nullable` — **null = global seed row** (~50 common exercises seeded by migration),
 `name`, `muscle_group`, `kind (strength|cardio)`. RLS: read global + own; write own only.
 
@@ -78,11 +78,16 @@ Sets: `session_id (cascade)`, `user_id`, `exercise text`, `set_number`, `reps`, 
 
 ### 🚧 push_tokens (607) — user_id, expo_token, device label, updated_at; RLS; notification prefs (categories + quiet hours) live on the profile or a jsonb column
 
-### 🚧 favorite_foods (201) · recipes + recipe_items (202) · water_logs (203) · routines + routine_exercises (302) · push_tokens (607)
+### 🚧 favorite_foods (201) · recipes + recipe_items (202) · water_logs (203) · push_tokens (607)
 Full definitions in `schema.sql`; the owning story writes the matching Zod schemas in
 `packages/shared` and adjusts columns via a new migration only if the build reveals a gap.
 Deliberately absent: `measurements` (post-v1.0, NWE-403) and `quest_days` (NWE-605 computes
 on read first).
+
+### ✅ routines + routine_exercises (NWE-302)
+Reusable workout templates. `routine_exercises` stores ordered exercise IDs plus target
+sets/reps; deleting a routine cascades template rows only. Past `workout_sessions.routine_id`
+is `on delete set null`, so history is never removed by template cleanup.
 
 ### 🚧 insights (NWE-502)
 `user_id`, `kind ('weekly'|'physique')`, `week_start date` (weekly only, unique per user+week),
