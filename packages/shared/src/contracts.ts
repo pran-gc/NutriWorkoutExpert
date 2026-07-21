@@ -67,6 +67,9 @@ export const updateProfileSchema = z.object({
   coaching_profile: coachingProfileSchema.optional(),
   // null clears the memory (server maps it to {}).
   coach_memory: coachMemorySchema.nullable().optional(),
+  // Marks the onboarding wizard as done/skipped. Accepts an ISO string; the
+  // server also auto-stamps it once core body stats are present.
+  onboarding_completed_at: z.string().datetime().nullable().optional(),
 });
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 

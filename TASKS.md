@@ -867,6 +867,23 @@ NWE-505 (coach chat) once the council is live and quota behavior under real usag
 
 *(agents: append findings here instead of expanding story scope)*
 
+- 2026-07-21 (bugfixes, from device testing): **two UX bugs fixed.**
+  1. **Onboarding re-showed on every launch.** `finish()` (Skip / "Start tracking") only
+     navigated and never persisted anything, so `profileIncomplete` stayed true and
+     `app/_layout.tsx` redirected back into the wizard forever. Fix: migration `0006` adds
+     `profiles.onboarding_completed_at` (backfilled for users who already had body stats); the
+     redirect guard keys off it; `finish()` + `saveAndPreview()` stamp it; and `PATCH /me`
+     auto-stamps once core stats (sex/birth_year/height_cm) are present. Integration + component
+     tested.
+  2. **Routine card layout broken** (Workouts → Routines): long routine names pushed the "Start"
+     button off-screen, and delete was an undiscoverable long-press. Fix: title `View` now
+     `flex:1` so Start stays visible; new reusable `components/SwipeToDelete.tsx`
+     (`ReanimatedSwipeable`, confirm-before-delete) replaces the long-press — routine rows are now
+     swipe-left-to-delete. Root wrapped in `GestureHandlerRootView`. **Needs a native rebuild**
+     (`npx expo run:ios`) since GestureHandlerRootView/gesture-handler now mount at the root.
+     Follow-up: apply the same swipe pattern to workout-history rows + food logs (still
+     long-press).
+
 - 2026-07-20 (NWE-121): **4 pre-existing "coach council" integration tests fail** in
   `epic5-6.integration.test.ts` (`coaches: council, generated program save…`, and the three
   `coach council:` tests at ~L225/294/329/404) — confirmed failing on a clean tree (stashed the

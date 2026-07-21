@@ -1,12 +1,21 @@
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  type BottomSheetBackdropProps,
+} from '@gorhom/bottom-sheet';
 import { formatPace, todayISO } from '@shared';
 import type { Exercise, GeneratedProgram, Routine, RoutineDiff, WorkoutSession } from '@shared';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { SymbolView } from 'expo-symbols';
+import { forwardRef, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Text, View } from '@/components/Themed';
+import { Text, useThemeColor, View } from '@/components/Themed';
 import { ProgramChat } from '@/components/workouts/ProgramChat';
 import { Button, Card, Chip, ChipRow, EmptyState, Input, Muted, SectionTitle } from '@/components/ui';
+import { confirmDelete } from '@/components/SwipeToDelete';
 import { Brand } from '@/constants/Colors';
 import {
   useCreateExercise,
@@ -25,6 +34,7 @@ import {
 } from '@/lib/hooks';
 
 type Segment = 'routines' | 'history';
+type RoutineSheetMode = 'view' | 'edit';
 export type DraftSet = {
   id?: string;
   exercise: string;
@@ -55,12 +65,21 @@ function rangeStart(days = 90): string {
   ).padStart(2, '0')}`;
 }
 
+function routineDisplayName(name: string): { eyebrow: string | null; title: string } {
+  const [program, day] = name.split(' · ');
+  if (!day) return { eyebrow: null, title: name };
+  return { eyebrow: program, title: day };
+}
+
 export default function WorkoutsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [segment, setSegment] = useState<Segment>('routines');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<WorkoutSession | null>(null);
   const [routineEditing, setRoutineEditing] = useState<Routine | 'new' | null>(null);
+  const [routineSheetMode, setRoutineSheetMode] = useState<RoutineSheetMode>('view');
+  const routineSheetRef = useRef<BottomSheetModal>(null);
   const [pickerIndex, setPickerIndex] = useState<number | null>(null);
   const [exerciseQuery, setExerciseQuery] = useState('');
   const [title, setTitle] = useState('');
@@ -250,16 +269,42 @@ export default function WorkoutsScreen() {
     }
   };
 
+  const confirmRoutineDelete = (routine: Routine) => {
+    confirmDelete({
+      title: 'Delete routine?',
+      message: `"${routine.name}" will be removed. This cannot be undone.`,
+      onDelete: () => deleteRoutine.mutate(routine.id),
+    });
+  };
+
+  const openRoutineSheet = (routine: Routine | 'new', mode: RoutineSheetMode) => {
+    setRoutineEditing(routine);
+    setRoutineSheetMode(mode);
+    requestAnimationFrame(() => routineSheetRef.current?.present());
+  };
+
+  const closeRoutineSheet = () => routineSheetRef.current?.dismiss();
+  const handleRoutineSheetDismiss = () => setRoutineEditing(null);
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <View style={styles.headerRow}>
-          <ChipRow>
-            <Chip label="Routines" active={segment === 'routines'} onPress={() => setSegment('routines')} />
-            <Chip label="History" active={segment === 'history'} onPress={() => setSegment('history')} />
-          </ChipRow>
-          <Pressable accessibilityLabel="Gym analytics" onPress={() => router.push('/gym-analytics')}>
-            <Text style={styles.iconLink}>↗</Text>
+        <View style={styles.topBar}>
+          <View style={styles.segmented}>
+            <SegmentButton label="Routines" active={segment === 'routines'} onPress={() => setSegment('routines')} />
+            <SegmentButton label="History" active={segment === 'history'} onPress={() => setSegment('history')} />
+          </View>
+          <Pressable
+            accessibilityLabel="Open gym analytics"
+            accessibilityRole="button"
+            onPress={() => router.push('/gym-analytics')}
+            style={({ pressed }) => [styles.analyticsButton, pressed && styles.pressed]}>
+            <SymbolView
+              name={{ ios: 'chart.line.uptrend.xyaxis', android: 'monitoring', web: 'monitoring' }}
+              tintColor={Brand.accent}
+              size={19}
+            />
+            <Text style={styles.analyticsText}>Analytics</Text>
           </Pressable>
         </View>
 
@@ -294,22 +339,26 @@ export default function WorkoutsScreen() {
           />
         )}
 
-        {routineEditing ? (
-          <RoutineEditor
-            routine={routineEditing}
-            exercises={exercises}
-            onClose={() => setRoutineEditing(null)}
-            onPickQuery={setExerciseQuery}
-          />
-        ) : segment === 'routines' ? (
+        {segment === 'routines' ? (
           <>
-            <Card>
-              <View style={styles.sessionHeader}>
-                <View style={{ backgroundColor: 'transparent', flex: 1 }}>
-                  <Text style={styles.sessionTitle}>Generate my program</Text>
-                  <Muted>Answer a few questions, preview the plan, then save editable routines.</Muted>
+            <Card style={styles.coachCard}>
+              <View style={styles.coachHeader}>
+                <View style={styles.coachIcon}>
+                  <SymbolView
+                    name={{ ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' }}
+                    tintColor={Brand.accent}
+                    size={20}
+                  />
                 </View>
-                <Button title={showProgramGen ? 'Hide' : 'Open'} onPress={() => setShowProgramGen((v) => !v)} />
+                <View style={styles.coachCopy}>
+                  <Text style={styles.cardTitle}>AI program builder</Text>
+                  <Muted style={styles.cardSubtitle}>Answer a few questions, preview, then save editable routines.</Muted>
+                </View>
+                <Button
+                  title={showProgramGen ? 'Close' : 'Open'}
+                  onPress={() => setShowProgramGen((v) => !v)}
+                  style={styles.compactButton}
+                />
               </View>
               {showProgramGen && (
                 <View style={styles.programBox}>
@@ -358,30 +407,87 @@ export default function WorkoutsScreen() {
                 </Card>
               )}
             </Card>
-            {routinesQuery.isLoading && <ActivityIndicator />}
-            {routines.map((routine) => (
-              <Card key={routine.id}>
-                <View style={styles.sessionHeader}>
-                  <View style={{ backgroundColor: 'transparent' }}>
-                    <Text style={styles.sessionTitle}>{routine.name}</Text>
-                    <Muted>{routine.routine_exercises?.length ?? 0} exercises</Muted>
+
+            <View style={styles.listHeader}>
+              <View style={styles.transparent}>
+                <Text style={styles.listTitle}>Your routines</Text>
+                <Muted>{routines.length ? `${routines.length} saved plans` : 'Start with a generated or custom routine.'}</Muted>
+              </View>
+              {routinesQuery.isLoading && <ActivityIndicator />}
+            </View>
+
+            {routines.map((routine) => {
+              const display = routineDisplayName(routine.name);
+              const exerciseCount = routine.routine_exercises?.length ?? 0;
+              return (
+                <Card key={routine.id} style={styles.routineCard}>
+                  <View style={styles.routineMainRow}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open ${routine.name}`}
+                      onPress={() => openRoutineSheet(routine, 'view')}
+                      style={({ pressed }) => [styles.routineOpenArea, pressed && styles.pressed]}>
+                      <View style={styles.routineMark}>
+                        <SymbolView
+                          name={{
+                            ios: 'figure.strengthtraining.traditional',
+                            android: 'fitness_center',
+                            web: 'fitness_center',
+                          }}
+                          tintColor={Brand.accent}
+                          size={20}
+                        />
+                      </View>
+                      <View style={styles.routineTitleWrap}>
+                        {display.eyebrow ? <Muted style={styles.routineEyebrow}>{display.eyebrow}</Muted> : null}
+                        <Text style={styles.routineTitle}>{display.title}</Text>
+                        <View style={styles.metaRow}>
+                          <Text style={styles.metaPill}>{exerciseCount} exercises</Text>
+                        </View>
+                      </View>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Start ${routine.name}`}
+                      onPress={() => startRoutine(routine)}
+                      style={({ pressed }) => [styles.startMiniButton, pressed && styles.pressed]}>
+                      <Text style={styles.startMiniText}>Start</Text>
+                    </Pressable>
                   </View>
-                  <Button title="Start" onPress={() => startRoutine(routine)} />
-                </View>
-                <Pressable onPress={() => setRoutineEditing(routine)}>
-                  <Text style={styles.link}>Edit routine</Text>
-                </Pressable>
-                <Pressable onPress={() => suggestAdaptation(routine)}>
-                  <Text style={styles.link}>Coach suggestion</Text>
-                </Pressable>
-                <Pressable onLongPress={() => deleteRoutine.mutate(routine.id)}>
-                  <Muted>Long-press here to delete.</Muted>
-                </Pressable>
-              </Card>
-            ))}
-            <Pressable onPress={() => setRoutineEditing('new')}>
-              <Card style={styles.centerCard}>
-                <Text style={styles.link}>+ New routine</Text>
+                  <View style={styles.routineActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Edit ${routine.name}`}
+                      onPress={() => openRoutineSheet(routine, 'edit')}
+                      style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}>
+                      <Text style={styles.actionText}>Edit</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Get coach suggestion for ${routine.name}`}
+                      onPress={() => suggestAdaptation(routine)}
+                      style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}>
+                      <Text style={styles.actionText}>Coach</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Delete ${routine.name}`}
+                      onPress={() => confirmRoutineDelete(routine)}
+                      style={({ pressed }) => [styles.deleteTextButton, pressed && styles.pressed]}>
+                      <Text style={styles.deleteText}>Delete</Text>
+                    </Pressable>
+                  </View>
+                </Card>
+              );
+            })}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Create a new routine"
+              onPress={() => openRoutineSheet('new', 'edit')}
+              style={({ pressed }) => pressed && styles.pressed}>
+              <Card style={styles.newRoutineCard}>
+                <Text style={styles.newRoutineText}>New routine</Text>
+                <Muted>Build your own plan from the exercise library.</Muted>
               </Card>
             </Pressable>
           </>
@@ -423,7 +529,143 @@ export default function WorkoutsScreen() {
           </>
         )}
       </ScrollView>
+      <RoutineBottomSheet ref={routineSheetRef} onDismiss={handleRoutineSheetDismiss}>
+        {routineEditing && routineSheetMode === 'view' && routineEditing !== 'new' ? (
+          <RoutineViewer
+            routine={routineEditing}
+            onEdit={() => setRoutineSheetMode('edit')}
+            onStart={() => {
+              startRoutine(routineEditing);
+              closeRoutineSheet();
+            }}
+          />
+        ) : routineEditing ? (
+          <RoutineEditor
+            routine={routineEditing}
+            exercises={exercises}
+            bottomInset={insets.bottom}
+            onClose={closeRoutineSheet}
+            onPickQuery={setExerciseQuery}
+          />
+        ) : null}
+      </RoutineBottomSheet>
     </KeyboardAvoidingView>
+  );
+}
+
+const RoutineBottomSheet = forwardRef<BottomSheetModal, {
+  onDismiss: () => void;
+  children: ReactNode;
+}>(function RoutineBottomSheet({ onDismiss, children }, ref) {
+  const snapPoints = useMemo(() => ['72%', '90%'], []);
+  const insets = useSafeAreaInsets();
+  const sheetBackgroundColor = useThemeColor({}, 'background');
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        opacity={0.58}
+        pressBehavior="close"
+      />
+    ),
+    []
+  );
+
+  return (
+    <BottomSheetModal
+      ref={ref}
+      index={0}
+      snapPoints={snapPoints}
+      enableDynamicSizing={false}
+      enablePanDownToClose
+      topInset={insets.top + 12}
+      bottomInset={insets.bottom}
+      backdropComponent={renderBackdrop}
+      backgroundStyle={[styles.sheetBackground, { backgroundColor: sheetBackgroundColor }]}
+      handleStyle={styles.sheetHandleArea}
+      handleIndicatorStyle={styles.sheetHandle}
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
+      android_keyboardInputMode="adjustResize"
+      onDismiss={onDismiss}>
+      {children}
+    </BottomSheetModal>
+  );
+});
+
+function SegmentButton({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={({ pressed }) => [styles.segmentButton, active && styles.segmentButtonActive, pressed && styles.pressed]}>
+      <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function RoutineViewer({
+  routine,
+  onEdit,
+  onStart,
+}: {
+  routine: Routine;
+  onEdit: () => void;
+  onStart: () => void;
+}) {
+  const display = routineDisplayName(routine.name);
+  const items = [...(routine.routine_exercises ?? [])].sort((a, b) => a.position - b.position);
+  return (
+    <View style={styles.sheetContent}>
+      <View style={styles.sheetHeader}>
+        <View style={styles.sheetTitleWrap}>
+          {display.eyebrow ? <Muted style={styles.routineEyebrow}>{display.eyebrow}</Muted> : null}
+          <Text style={styles.sheetTitle}>{display.title}</Text>
+          <Muted>{items.length} exercises</Muted>
+        </View>
+      </View>
+
+      <BottomSheetScrollView
+        style={styles.sheetScroller}
+        contentContainerStyle={styles.sheetList}
+        keyboardShouldPersistTaps="handled">
+        {items.length === 0 ? (
+          <Muted>This routine has no exercises yet.</Muted>
+        ) : (
+          items.map((item, index) => (
+            <View key={item.id ?? `${item.exercise_id}-${index}`} style={styles.viewerExerciseRow}>
+              <View style={styles.viewerExerciseMark}>
+                <Text style={styles.viewerExerciseNumber}>{index + 1}</Text>
+              </View>
+              <View style={styles.viewerExerciseCopy}>
+                <Text style={styles.viewerExerciseName}>{item.exercise?.name ?? 'Exercise'}</Text>
+                <Muted>
+                  {item.target_sets} sets{item.target_reps ? ` · ${item.target_reps} reps` : ''}
+                </Muted>
+              </View>
+            </View>
+          ))
+        )}
+      </BottomSheetScrollView>
+
+      <View style={styles.sheetActions}>
+        <Button title="Start" onPress={onStart} style={{ flex: 1 }} />
+        <Pressable accessibilityRole="button" onPress={onEdit} style={styles.secondarySheetButton}>
+          <Text style={styles.actionText}>Edit</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -553,26 +795,42 @@ export function ExercisePicker({
 export function RoutineEditor({
   routine,
   exercises,
+  bottomInset = 0,
   onClose,
 }: {
   routine: Routine | 'new';
   exercises: Exercise[];
+  bottomInset?: number;
   onClose: () => void;
   onPickQuery: (v: string) => void;
 }) {
   const createRoutine = useCreateRoutine();
   const updateRoutine = useUpdateRoutine();
   const initial = routine === 'new' ? [] : routine.routine_exercises ?? [];
+  const originalItems = useMemo(
+    () =>
+      initial.map((item, index) => ({
+        key: item.id ?? `${item.exercise_id}-${index}`,
+        exercise_id: item.exercise_id,
+        name: item.exercise?.name ?? 'Exercise',
+        target_sets: String(item.target_sets),
+        target_reps: item.target_reps?.toString() ?? '',
+      })),
+    [initial]
+  );
   const [name, setName] = useState(routine === 'new' ? '' : routine.name);
   const [items, setItems] = useState(
-    initial.map((item, index) => ({
-      exercise_id: item.exercise_id,
-      name: item.exercise?.name ?? 'Exercise',
-      target_sets: String(item.target_sets),
-      target_reps: item.target_reps?.toString() ?? '',
-      position: index,
-    }))
+    originalItems.map((item, index) => ({ ...item, position: index }))
   );
+  const moveItem = (index: number, direction: -1 | 1) => {
+    setItems((prev) => {
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+  };
   const save = async () => {
     if (!name.trim()) {
       Alert.alert('Name needed', 'Give this routine a name.');
@@ -597,82 +855,179 @@ export function RoutineEditor({
     }
   };
   return (
-    <Card>
-      <Text style={styles.sessionTitle}>{routine === 'new' ? 'New routine' : 'Edit routine'}</Text>
-      <Input accessibilityLabel="Routine name" placeholder="Routine name" value={name} onChangeText={setName} />
-      {items.map((item, index) => (
-        <View key={`${item.exercise_id}-${index}`} style={styles.setBlock}>
-          <Text>{item.name}</Text>
-          <View style={styles.setRow}>
-            <Input style={{ flex: 1 }} placeholder="Sets" keyboardType="numeric" value={item.target_sets} onChangeText={(v) => setItems((prev) => prev.map((x, i) => (i === index ? { ...x, target_sets: v } : x)))} />
-            <Input style={{ flex: 1 }} placeholder="Reps" keyboardType="numeric" value={item.target_reps} onChangeText={(v) => setItems((prev) => prev.map((x, i) => (i === index ? { ...x, target_reps: v } : x)))} />
-          </View>
-          <View style={styles.setRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Move ${item.name} up`}
-              disabled={index === 0}
-              onPress={() =>
-                setItems((prev) => {
-                  const next = [...prev];
-                  [next[index - 1], next[index]] = [next[index], next[index - 1]];
-                  return next;
-                })
-              }>
-              <Muted>Move up</Muted>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Move ${item.name} down`}
-              disabled={index === items.length - 1}
-              onPress={() =>
-                setItems((prev) => {
-                  const next = [...prev];
-                  [next[index], next[index + 1]] = [next[index + 1], next[index]];
-                  return next;
-                })
-              }>
-              <Muted>Move down</Muted>
-            </Pressable>
-            <Button
-              title="Remove"
-              variant="destructive"
-              accessibilityLabel={`Remove ${item.name}`}
-              onPress={() => setItems((prev) => prev.filter((_, i) => i !== index))}
-              style={styles.inlineButton}
-            />
-          </View>
+    <View style={styles.sheetContent}>
+      <View style={styles.sheetHeader}>
+        <View style={styles.sheetTitleWrap}>
+          <Text style={styles.sheetTitle}>{routine === 'new' ? 'New routine' : 'Edit routine'}</Text>
+          <Muted>{items.length} exercises</Muted>
         </View>
-      ))}
-      <ScrollView horizontal keyboardShouldPersistTaps="handled" style={{ maxHeight: 46 }}>
-        {exercises.slice(0, 20).map((exercise) => (
-          <Pressable
-            key={exercise.id}
-            style={styles.exercisePill}
-            onPress={() =>
-              setItems((prev) => [
-                ...prev,
-                { exercise_id: exercise.id, name: exercise.name, target_sets: '3', target_reps: exercise.kind === 'cardio' ? '' : '8', position: prev.length },
-              ])
-            }>
-            <Text style={styles.pillText}>{exercise.name}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-      <View style={styles.setRow}>
-        <Button title="Save routine" onPress={save} loading={createRoutine.isPending || updateRoutine.isPending} style={{ flex: 1 }} />
-        <Pressable style={styles.cancelInline} onPress={onClose}>
-          <Muted>Cancel</Muted>
-        </Pressable>
       </View>
-    </Card>
+
+      <BottomSheetScrollView
+        style={styles.sheetScroller}
+        contentContainerStyle={[styles.editorList, { paddingBottom: bottomInset + 96 }]}
+        keyboardShouldPersistTaps="handled">
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>Routine name</Text>
+          <Input accessibilityLabel="Routine name" placeholder="Routine name" value={name} onChangeText={setName} />
+        </View>
+
+        {items.map((item, index) => {
+          const original = originalItems.find((candidate) => candidate.key === item.key);
+          const changed =
+            !!original &&
+            (original.target_sets !== item.target_sets || original.target_reps !== item.target_reps);
+          return (
+            <View key={item.key} style={styles.editorExerciseCard}>
+              <View style={styles.editorExerciseHeader}>
+                <View style={styles.viewerExerciseMark}>
+                  <Text style={styles.viewerExerciseNumber}>{index + 1}</Text>
+                </View>
+                <View style={styles.editorExerciseTitle}>
+                  <Text style={styles.viewerExerciseName}>{item.name}</Text>
+                  {changed ? (
+                    <Text style={styles.diffText}>
+                      {original?.target_sets || '-'}x{original?.target_reps || 'time'} to {item.target_sets || '-'}x{item.target_reps || 'time'}
+                    </Text>
+                  ) : (
+                    <Muted>Target prescription</Muted>
+                  )}
+                </View>
+                {changed ? <Text style={styles.changedPill}>Changed</Text> : null}
+              </View>
+
+              <View style={styles.editorInputRow}>
+                <View style={styles.fieldGroupInline}>
+                  <Text style={styles.fieldLabel}>Sets</Text>
+                  <Input
+                    style={styles.compactInput}
+                    placeholder="Sets"
+                    keyboardType="numeric"
+                    value={item.target_sets}
+                    onChangeText={(v) => setItems((prev) => prev.map((x, i) => (i === index ? { ...x, target_sets: v } : x)))}
+                  />
+                </View>
+                <View style={styles.fieldGroupInline}>
+                  <Text style={styles.fieldLabel}>Reps</Text>
+                  <Input
+                    style={styles.compactInput}
+                    placeholder="Reps"
+                    keyboardType="numeric"
+                    value={item.target_reps}
+                    onChangeText={(v) => setItems((prev) => prev.map((x, i) => (i === index ? { ...x, target_reps: v } : x)))}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.editorActionRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Move ${item.name} up`}
+                  disabled={index === 0}
+                  onPress={() => moveItem(index, -1)}
+                  style={[styles.editorMiniButton, index === 0 && styles.disabledControl]}>
+                  <Text style={styles.editorMiniText}>Up</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Move ${item.name} down`}
+                  disabled={index === items.length - 1}
+                  onPress={() => moveItem(index, 1)}
+                  style={[styles.editorMiniButton, index === items.length - 1 && styles.disabledControl]}>
+                  <Text style={styles.editorMiniText}>Down</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${item.name}`}
+                  onPress={() => setItems((prev) => prev.filter((_, i) => i !== index))}
+                  style={styles.editorRemoveButton}>
+                  <Text style={styles.editorRemoveText}>Remove</Text>
+                </Pressable>
+              </View>
+            </View>
+          );
+        })}
+
+        <View style={styles.addExerciseBlock}>
+          <Text style={styles.fieldLabel}>Add exercise</Text>
+          <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false}>
+            {exercises.slice(0, 20).map((exercise) => (
+              <Pressable
+                key={exercise.id}
+                style={styles.exercisePill}
+                onPress={() =>
+                  setItems((prev) => [
+                    ...prev,
+                    {
+                      key: `new-${exercise.id}-${prev.length}`,
+                      exercise_id: exercise.id,
+                      name: exercise.name,
+                      target_sets: '3',
+                      target_reps: exercise.kind === 'cardio' ? '' : '8',
+                      position: prev.length,
+                    },
+                  ])
+                }>
+                <Text style={styles.pillText}>{exercise.name}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+        <View style={styles.sheetActions}>
+          <Button title="Save routine" onPress={save} loading={createRoutine.isPending || updateRoutine.isPending} style={{ flex: 1 }} />
+          <Pressable accessibilityRole="button" style={styles.secondarySheetButton} onPress={onClose}>
+            <Muted>Cancel</Muted>
+          </Pressable>
+        </View>
+      </BottomSheetScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, gap: 10 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'transparent' },
-  iconLink: { color: Brand.accent, fontSize: 22, fontWeight: '700' },
+  container: { padding: 16, paddingBottom: 28, gap: 12 },
+  transparent: { backgroundColor: 'transparent' },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, backgroundColor: 'transparent' },
+  segmented: {
+    flex: 1,
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(142,142,147,.22)',
+    backgroundColor: 'rgba(142,142,147,.12)',
+  },
+  segmentButton: {
+    minHeight: 44,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+  },
+  segmentButtonActive: {
+    backgroundColor: Brand.accent,
+  },
+  segmentText: {
+    color: Brand.accent,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  segmentTextActive: {
+    color: '#fff',
+  },
+  analyticsButton: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(22,163,74,.28)',
+    backgroundColor: 'rgba(22,163,74,.10)',
+  },
+  analyticsText: { color: Brand.accent, fontSize: 14, fontWeight: '700' },
+  pressed: { opacity: 0.72 },
   setsHeading: { fontSize: 15, fontWeight: '600', marginTop: 4 },
   setBlock: { gap: 6, paddingVertical: 5, backgroundColor: 'transparent' },
   setRow: { flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: 'transparent' },
@@ -680,13 +1035,206 @@ const styles = StyleSheet.create({
   pickerRow: { paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(142,142,147,.25)' },
   link: { color: Brand.accent, fontSize: 14, fontWeight: '600' },
   sessionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'transparent' },
+  coachCard: { gap: 12, borderWidth: 1, borderColor: 'rgba(22,163,74,.16)', borderRadius: 12 },
+  coachHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'transparent' },
+  coachIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(22,163,74,.12)',
+  },
+  coachCopy: { flex: 1, gap: 2, backgroundColor: 'transparent' },
+  cardTitle: { fontSize: 17, fontWeight: '800' },
+  cardSubtitle: { fontSize: 13, lineHeight: 18 },
+  compactButton: { minHeight: 44, paddingHorizontal: 16, paddingVertical: 10 },
+  listHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 2,
+    backgroundColor: 'transparent',
+  },
+  listTitle: { fontSize: 20, fontWeight: '800' },
+  routineCard: {
+    gap: 12,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(142,142,147,.12)',
+  },
+  routineMainRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: 'transparent' },
+  routineOpenArea: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: 'transparent' },
+  routineMark: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(22,163,74,.10)',
+  },
+  routineTitleWrap: { flex: 1, gap: 6, backgroundColor: 'transparent' },
+  routineEyebrow: { fontSize: 13, lineHeight: 18 },
+  routineTitle: { fontSize: 18, lineHeight: 24, fontWeight: '800' },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, backgroundColor: 'transparent' },
+  metaPill: {
+    overflow: 'hidden',
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    color: Brand.accent,
+    fontSize: 12,
+    fontWeight: '700',
+    backgroundColor: 'rgba(22,163,74,.12)',
+  },
+  startMiniButton: {
+    minWidth: 70,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    backgroundColor: Brand.accent,
+  },
+  startMiniText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  routineActions: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'transparent' },
+  actionButton: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(142,142,147,.12)',
+  },
+  actionText: { color: Brand.accent, fontSize: 14, fontWeight: '800' },
+  deleteTextButton: { minHeight: 44, marginLeft: 'auto', justifyContent: 'center', paddingHorizontal: 8 },
+  deleteText: { color: Brand.destructive, fontSize: 13, fontWeight: '700' },
   sessionTitle: { fontSize: 16, fontWeight: '600' },
   setLine: { fontSize: 14 },
   programBox: { gap: 8, paddingTop: 8, backgroundColor: 'transparent' },
   previewDay: { borderWidth: 1, borderColor: 'rgba(22,163,74,.25)' },
-  centerCard: { alignItems: 'center' },
+  newRoutineCard: {
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(22,163,74,.38)',
+    backgroundColor: 'rgba(22,163,74,.06)',
+  },
+  newRoutineText: { color: Brand.accent, fontSize: 16, fontWeight: '800' },
   cancelInline: { paddingHorizontal: 10, justifyContent: 'center' },
   inlineButton: { paddingHorizontal: 10, paddingVertical: 7 },
   exercisePill: { borderWidth: 1, borderColor: Brand.accent, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, marginRight: 6 },
   pillText: { color: Brand.accent, fontSize: 13 },
+  sheetBackground: {
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+  },
+  sheetHandleArea: {
+    paddingTop: 10,
+    paddingBottom: 4,
+  },
+  sheetContent: {
+    flex: 1,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 0,
+    backgroundColor: 'transparent',
+  },
+  sheetHandle: {
+    width: 42,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(142,142,147,.35)',
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    backgroundColor: 'transparent',
+  },
+  sheetTitleWrap: { flex: 1, gap: 3, backgroundColor: 'transparent' },
+  sheetTitle: { fontSize: 22, lineHeight: 28, fontWeight: '800' },
+  sheetScroller: { flex: 1 },
+  sheetList: { gap: 8, paddingBottom: 24 },
+  viewerExerciseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(142,142,147,.10)',
+  },
+  viewerExerciseMark: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(22,163,74,.12)',
+  },
+  viewerExerciseNumber: { color: Brand.accent, fontSize: 14, fontWeight: '800' },
+  viewerExerciseCopy: { flex: 1, gap: 2, backgroundColor: 'transparent' },
+  viewerExerciseName: { fontSize: 16, lineHeight: 21, fontWeight: '700' },
+  sheetActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'transparent',
+  },
+  secondarySheetButton: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: 'rgba(142,142,147,.12)',
+  },
+  editorList: { gap: 10 },
+  fieldGroup: { gap: 6, backgroundColor: 'transparent' },
+  fieldGroupInline: { flex: 1, gap: 6, backgroundColor: 'transparent' },
+  fieldLabel: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', color: Brand.accent },
+  editorExerciseCard: {
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(142,142,147,.16)',
+    backgroundColor: 'rgba(142,142,147,.08)',
+  },
+  editorExerciseHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'transparent' },
+  editorExerciseTitle: { flex: 1, gap: 2, backgroundColor: 'transparent' },
+  changedPill: {
+    overflow: 'hidden',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    color: Brand.accent,
+    fontSize: 11,
+    fontWeight: '800',
+    backgroundColor: 'rgba(22,163,74,.12)',
+  },
+  diffText: { color: Brand.accent, fontSize: 12, fontWeight: '700' },
+  editorInputRow: { flexDirection: 'row', gap: 10, backgroundColor: 'transparent' },
+  compactInput: { minHeight: 44, paddingVertical: 8 },
+  editorActionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'transparent' },
+  editorMiniButton: {
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(142,142,147,.14)',
+  },
+  editorMiniText: { color: Brand.accent, fontSize: 13, fontWeight: '800' },
+  editorRemoveButton: {
+    minHeight: 40,
+    marginLeft: 'auto',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(220,38,38,.10)',
+  },
+  editorRemoveText: { color: Brand.destructive, fontSize: 13, fontWeight: '800' },
+  disabledControl: { opacity: 0.35 },
+  addExerciseBlock: { gap: 8, backgroundColor: 'transparent' },
 });

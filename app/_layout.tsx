@@ -1,9 +1,12 @@
 import { QueryClientProvider } from '@tanstack/react-query';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
 import { ErrorBanner } from '@/components/ErrorBanner';
@@ -11,6 +14,7 @@ import { SessionProvider, useSession } from '@/components/SessionProvider';
 import { View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import { initAuthDeepLinks } from '@/lib/authDeepLink';
+import { hasOnboardingCompletedLocally } from '@/lib/onboardingState';
 import { queryClient } from '@/lib/queryClient';
 
 export {
@@ -46,11 +50,17 @@ export default function RootLayout() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <SessionProvider>
-        <RootLayoutNav />
-      </SessionProvider>
-    </QueryClientProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <BottomSheetModalProvider>
+            <SessionProvider>
+              <RootLayoutNav />
+            </SessionProvider>
+          </BottomSheetModalProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -62,10 +72,18 @@ function RootLayoutNav() {
   // True while handling a password-recovery deep link — the user has a (recovery)
   // session but must set a new password before entering the app.
   const [recovering, setRecovering] = useState(false);
+  const [checkingLocalOnboarding, setCheckingLocalOnboarding] = useState(true);
+  const [localOnboardingCompleted, setLocalOnboardingCompleted] = useState(false);
 
-  // A profile is "incomplete" until the core body stats exist (NWE-104).
+  // The onboarding wizard shows exactly once: until the user finishes or skips it
+  // (server stamps onboarding_completed_at then, and also once core stats exist).
+  // Falls back to the body-stats check for rows predating the flag (0006 backfills
+  // those, but a stale in-memory profile might not carry it yet).
   const profileIncomplete =
-    !!profile && (!profile.sex || !profile.birth_year || !profile.height_cm);
+    !!profile &&
+    !profile.onboarding_completed_at &&
+    !localOnboardingCompleted &&
+    (!profile.sex || !profile.birth_year || !profile.height_cm);
 
   // Catch Supabase auth deep links (email confirmation, password reset) — on
   // native, supabase-js can't auto-detect them, so we establish the session here.
@@ -77,22 +95,45 @@ function RootLayoutNav() {
   }, [router]);
 
   useEffect(() => {
-    if (loading || recovering) return; // don't fight the recovery redirect
+    let cancelled = false;
+    const userId = session?.user.id;
+    if (!userId) {
+      setLocalOnboardingCompleted(false);
+      setCheckingLocalOnboarding(false);
+      return;
+    }
+    setCheckingLocalOnboarding(true);
+    hasOnboardingCompletedLocally(userId)
+      .then((completed) => {
+        if (!cancelled) setLocalOnboardingCompleted(completed);
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingLocalOnboarding(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    if (loading || recovering || checkingLocalOnboarding) return; // don't fight the recovery redirect
     const inAuthGroup = segments[0] === '(auth)';
     const inOnboarding = segments[0] === '(onboarding)';
     if (!session && !inAuthGroup) {
       router.replace('/(auth)/sign-in');
     } else if (session && inAuthGroup) {
       router.replace('/(tabs)');
+    } else if (session && !profileIncomplete && inOnboarding) {
+      router.replace('/(tabs)');
     } else if (session && profileIncomplete && !inOnboarding) {
       // Signed in but never set up → the wizard (skippable from within).
       router.replace('/(onboarding)');
     }
-  }, [session, loading, segments, profileIncomplete, recovering]);
+  }, [session, loading, segments, profileIncomplete, recovering, checkingLocalOnboarding]);
 
   // Hold on a neutral splash until the session resolves, so no tab flashes its
   // empty/wrong state before the auth redirect runs (NWE-101 AC#3).
-  if (loading) {
+  if (loading || checkingLocalOnboarding) {
     return (
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>

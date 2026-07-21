@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import OnboardingWizard from './index';
 
@@ -36,9 +36,11 @@ describe('OnboardingWizard', () => {
     expect(await findByText('How active are you?')).toBeTruthy();
   });
 
-  it('Skip jumps straight to the tabs', async () => {
+  it('Skip marks onboarding done and jumps to the tabs', async () => {
     const { getByText } = await render(wrap(<OnboardingWizard />));
     fireEvent.press(getByText('Skip'));
-    expect(replaceMock).toHaveBeenCalledWith('/(tabs)');
+    // finish() persists the completion flag first (best-effort), then navigates —
+    // so the wizard never re-shows on the next launch.
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith('/(tabs)'));
   });
 });

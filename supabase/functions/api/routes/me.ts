@@ -46,6 +46,16 @@ export const meRoute = new Hono<Env>()
     const update: Record<string, unknown> = { ...patch };
     // coach_memory: null means "clear" — the column is non-null jsonb (NWE-119).
     if (patch.coach_memory === null) update.coach_memory = {};
+    // Auto-stamp onboarding completion once the core body stats are present, so
+    // the wizard never re-shows even if the client forgot to send the flag.
+    if (
+      !current.onboarding_completed_at &&
+      merged.sex &&
+      merged.birth_year &&
+      merged.height_cm
+    ) {
+      update.onboarding_completed_at = new Date().toISOString();
+    }
     if (!merged.targets_locked) {
       const { data: latest } = await db
         .from('weight_logs')

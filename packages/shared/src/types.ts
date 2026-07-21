@@ -67,6 +67,9 @@ export const profileSchema = z.object({
   fat_target_g: z.number().int().nullable(),
   targets_locked: z.boolean(),
   water_target_ml: z.number().int(),
+  // Set once the user finishes or skips onboarding (NWE bugfix) — the redirect
+  // guard keys off this so the wizard shows exactly once. Nullable for old rows.
+  onboarding_completed_at: z.string().nullable().optional(),
   notification_prefs: z.record(z.unknown()).optional(),
   // jsonb columns — shapes owned by coachingProfileSchema / coachMemorySchema in
   // contracts.ts; kept loose here so row parsing never rejects older rows.

@@ -10,6 +10,8 @@ import {
 import { Text, View, useThemeColor } from '@/components/Themed';
 import { Brand } from '@/constants/Colors';
 
+export { SwipeToDelete } from '@/components/SwipeToDelete';
+
 // ---------------------------------------------------------------------------
 // Surfaces
 // ---------------------------------------------------------------------------

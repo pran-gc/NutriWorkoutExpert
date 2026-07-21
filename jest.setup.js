@@ -18,6 +18,7 @@ jest.mock('react-native-reanimated', () => {
     default: {
       View: RN.View,
       Text: RN.Text,
+      createAnimatedComponent: (Component) => React.forwardRef((props, ref) => React.createElement(Component, { ...props, ref })),
     },
     useSharedValue: (value) => ({ value }),
     useAnimatedStyle: (factory) => factory(),
@@ -25,6 +26,26 @@ jest.mock('react-native-reanimated', () => {
     withSpring: (value) => value,
     withSequence: (...values) => values[values.length - 1],
     createAnimatedComponent: (Component) => React.forwardRef((props, ref) => React.createElement(Component, { ...props, ref })),
+  };
+});
+
+const mockAsyncStorage = {
+  getItem: jest.fn(async () => null),
+  setItem: jest.fn(async () => undefined),
+  removeItem: jest.fn(async () => undefined),
+  clear: jest.fn(async () => undefined),
+};
+
+jest.mock('@react-native-async-storage/async-storage', () => mockAsyncStorage);
+
+jest.mock('@gorhom/bottom-sheet', () => require('@gorhom/bottom-sheet/mock'));
+
+jest.mock('react-native-safe-area-context', () => {
+  const React = require('react');
+  return {
+    SafeAreaProvider: ({ children }) => React.createElement(React.Fragment, null, children),
+    SafeAreaView: ({ children }) => React.createElement(React.Fragment, null, children),
+    useSafeAreaInsets: () => ({ top: 47, right: 0, bottom: 34, left: 0 }),
   };
 });
 

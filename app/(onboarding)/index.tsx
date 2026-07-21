@@ -13,6 +13,7 @@ import { Button, Card, Chip, ChipRow, Input, Muted, OptionRow } from '@/componen
 import { ACTIVITY_LABELS, GOAL_LABELS } from '@shared';
 import { Brand } from '@/constants/Colors';
 import { useUpdateProfile, useUpsertWeight } from '@/lib/hooks';
+import { markOnboardingCompletedLocally } from '@/lib/onboardingState';
 
 const ACTIVITIES = Object.keys(ACTIVITY_LABELS) as ActivityLevel[];
 const GOALS = Object.keys(GOAL_LABELS) as GoalType[];
@@ -40,7 +41,22 @@ export default function OnboardingWizard() {
   const [weight, setWeight] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const finish = () => {
+  // Leave onboarding for good: stamp completion (so it never re-shows) and persist
+  // whatever the user did fill in. Navigate regardless — a failed write must never
+  // trap the user in the wizard.
+  const finish = async () => {
+    await markOnboardingCompletedLocally();
+    try {
+      await updateProfile.mutateAsync({
+        onboarding_completed_at: new Date().toISOString(),
+        ...(sex ? { sex } : {}),
+        ...(parseInt(birthYear, 10) ? { birth_year: parseInt(birthYear, 10) } : {}),
+        ...(parseFloat(heightCm) ? { height_cm: parseFloat(heightCm) } : {}),
+      });
+      await refreshProfile();
+    } catch {
+      // Non-fatal — the guard also completes onboarding once stats exist server-side.
+    }
     router.replace('/(tabs)');
   };
 
@@ -51,6 +67,7 @@ export default function OnboardingWizard() {
       const kg = parseFloat(weight);
       if (kg && kg > 0) await upsertWeight.mutateAsync({ date: todayISO(), weight_kg: kg });
       await updateProfile.mutateAsync({
+        onboarding_completed_at: new Date().toISOString(),
         sex,
         birth_year: parseInt(birthYear, 10) || null,
         height_cm: parseFloat(heightCm) || null,
@@ -66,6 +83,7 @@ export default function OnboardingWizard() {
           meals_per_day: mealsPerDay,
         },
       });
+      await markOnboardingCompletedLocally();
       await refreshProfile();
       setStep(STEPS.indexOf('done'));
     } catch (e) {
