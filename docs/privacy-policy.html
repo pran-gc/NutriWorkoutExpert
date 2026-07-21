@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NutriWorkoutExpert — Privacy Policy</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.6; max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+        color: #1a1a1a; background: #fff;
+      }
+      @media (prefers-color-scheme: dark) { body { color: #e8e8e8; background: #141414; } a { color: #6ea8fe; } }
+      h1 { font-size: 1.9rem; margin-bottom: 0.25rem; }
+      h2 { font-size: 1.25rem; margin-top: 2rem; }
+      .updated { color: #888; font-size: 0.9rem; }
+      code { background: rgba(128,128,128,0.15); padding: 0.1em 0.35em; border-radius: 4px; }
+      ul { padding-left: 1.25rem; }
+      .callout { border-left: 3px solid #16a34a; padding: 0.5rem 1rem; background: rgba(22,163,74,0.06); border-radius: 0 8px 8px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Privacy Policy</h1>
+    <p class="updated">NutriWorkoutExpert · Last updated: 11 July 2026</p>
+
+    <p>
+      NutriWorkoutExpert ("the app", "we") helps you track nutrition, workouts, weight and
+      health goals. This policy explains what data the app handles, where it lives, and the
+      controls you have. We designed the app to keep the most sensitive data — your photos — on
+      your device.
+    </p>
+
+    <h2>Who controls your data</h2>
+    <p>
+      The developer of NutriWorkoutExpert is the data controller. You can reach us at
+      <a href="mailto:sirpgc@gmail.com">sirpgc@gmail.com</a>. Contact us for any privacy request,
+      including access, correction, export, or deletion.
+    </p>
+
+    <h2>What we collect and why</h2>
+    <ul>
+      <li><strong>Account:</strong> your email address, used only to sign in and secure your account (via Supabase Auth).</li>
+      <li><strong>Health &amp; fitness data you enter:</strong> body stats (sex, birth year, height), weight logs, food logs and macros, water intake, workouts and sets, recipes, favorites, goals and targets. This is stored so your data syncs across your devices.</li>
+      <li><strong>Engagement data derived from your logs:</strong> streaks, quests, and badges — all computed from the real actions you log; we do not collect self-reported activity.</li>
+      <li><strong>AI insights:</strong> text feedback generated for you (weekly reviews, coach plans, physique feedback), stored so you can revisit it.</li>
+      <li><strong>Notification preferences and device push token</strong> (only if you enable notifications), so we can deliver reminders and the "your weekly review is ready" alert.</li>
+    </ul>
+    <p>We do not collect advertising identifiers, location, contacts, or browsing history. We do not sell your data.</p>
+
+    <h2 id="photos">Photos — stored on your device only</h2>
+    <div class="callout">
+      <p>
+        <strong>Your photos are never stored on our servers.</strong> Meal photos and progress
+        photos are saved only in the app's private storage on your device. They are never uploaded
+        to us and are not part of your synced account data. If you delete your account, local
+        photos are removed from your device.
+      </p>
+    </div>
+
+    <h2>Optional AI features and Google Gemini</h2>
+    <p>
+      Two features are powered by Google's Gemini API and are strictly opt-in:
+    </p>
+    <ul>
+      <li><strong>Snap-to-log</strong> (photograph a meal to estimate it) and <strong>Physique compare</strong> (compare two progress photos for encouraging feedback).</li>
+    </ul>
+    <p>
+      When you use these features, the photo is sent to Google's Gemini API <em>for the moment of
+      analysis only</em> and is not stored on our servers — only the resulting text is kept. For
+      other AI features (weekly review, coach plans), we send only <em>aggregated numbers</em>
+      (e.g. average calories, session counts) — never your raw logs, email, or identity.
+    </p>
+    <div class="callout">
+      <p>
+        <strong>Free-tier caveat:</strong> these AI features use Google's free-tier Gemini API. Per
+        Google's terms, content sent to the free tier may be processed by Google to improve their
+        services. You are told this before your first use and must explicitly consent. You can
+        revoke consent at any time in Profile, after which no photos are sent for AI analysis.
+      </p>
+    </div>
+
+    <h2>Where your data is stored</h2>
+    <p>
+      Account and health data are stored in a Supabase project (hosted on cloud infrastructure)
+      with per-user row-level security, so your rows are only accessible to your authenticated
+      account. Data is encrypted in transit (HTTPS/TLS) and at rest by the hosting provider.
+    </p>
+
+    <h2>Your rights and controls</h2>
+    <ul>
+      <li><strong>Export:</strong> Profile → Export my data returns a complete JSON copy of all your records.</li>
+      <li><strong>Delete:</strong> Profile → Delete account permanently erases your account and all associated data, and wipes local photos from your device. This is irreversible.</li>
+      <li><strong>Change password</strong> and <strong>reset a forgotten password</strong> from the app.</li>
+      <li><strong>Notifications:</strong> fully user-controlled — enable/disable by category, set quiet hours, or turn everything off.</li>
+      <li><strong>AI consent:</strong> revoke photo-AI consent any time in Profile.</li>
+    </ul>
+
+    <h2>Data retention</h2>
+    <p>
+      We keep your data for as long as your account exists. When you delete your account, your data
+      is removed promptly and cascaded across all records. Photos are on-device only and are
+      removed on deletion.
+    </p>
+
+    <h2>Children</h2>
+    <p>
+      NutriWorkoutExpert is not directed to children under 13 (or the minimum age in your
+      jurisdiction), and we do not knowingly collect data from them.
+    </p>
+
+    <h2>Health disclaimer</h2>
+    <p>
+      NutriWorkoutExpert is a tracking and general-wellness tool, not a medical device. Its
+      calculations and AI suggestions are estimates and general guidance, not medical, nutritional,
+      or fitness advice. Consult a qualified professional before making significant changes.
+    </p>
+
+    <h2>Changes to this policy</h2>
+    <p>
+      We may update this policy; material changes will be reflected by the "Last updated" date
+      above and, where appropriate, surfaced in the app.
+    </p>
+
+    <h2>Contact</h2>
+    <p>Questions or requests: <a href="mailto:sirpgc@gmail.com">sirpgc@gmail.com</a>.</p>
+  </body>
+</html>

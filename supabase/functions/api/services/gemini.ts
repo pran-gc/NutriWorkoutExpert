@@ -14,11 +14,24 @@ import {
   resolvedIngredientSchema,
   routineDiffSchema,
   validateWeeklyReview,
+  type CoachChatMessage,
+  type RefineProgramResponse,
+  COACH_MEMORY_MAX_CHARS,
+  refineProgramResponseSchema,
+  type MealPlan,
+  type RefineMealPlanResponse,
+  mealPlanSchema,
+  mealPlanTotals,
+  refineMealPlanResponseSchema,
 } from '../../_shared/index.ts';
+import { COACH_MEMORY_PROMPT_VERSION, coachMemoryPrompt } from '../prompts/coach-memory.v1.ts';
 import { COUNCIL_PROMPT_VERSION, councilPrompt } from '../prompts/council.v1.ts';
+import { PROGRAM_REFINE_PROMPT_VERSION, PROGRAM_REFINE_SYSTEM, programRefinePrompt, refineHistory } from '../prompts/program-refine.v1.ts';
+import { MEAL_PLAN_PROMPT_VERSION, MEAL_PLAN_SYSTEM, mealPlanPrompt, type MealPlanContext } from '../prompts/meal-plan.v1.ts';
+import { MEAL_PLAN_REFINE_PROMPT_VERSION, MEAL_PLAN_REFINE_SYSTEM, mealPlanRefineHistory, mealPlanRefinePrompt } from '../prompts/meal-plan-refine.v1.ts';
 import { MEAL_PHOTO_PROMPT_VERSION, mealPhotoPrompt } from '../prompts/meal-photo.v1.ts';
 import { PHYSIQUE_COMPARE_PROMPT_VERSION, physiqueComparePrompt } from '../prompts/physique-compare.v1.ts';
-import { PROGRAM_GEN_PROMPT_VERSION, programGenPrompt } from '../prompts/program-gen.v1.ts';
+import { PROGRAM_GEN_PROMPT_VERSION, PROGRAM_GEN_SYSTEM, programGenPrompt, type ProgramContext } from '../prompts/program-gen.v1.ts';
 import { weeklyReviewPrompt } from '../prompts/weekly-review.v1.ts';
 
 export interface GeneratedText {
@@ -70,48 +83,90 @@ function mockSequence<T>(envName: string, parse: (value: unknown) => T): T | nul
   return null;
 }
 
-async function geminiJson<T>(prompt: string, parse: (value: unknown) => T, parts: Record<string, unknown>[] = []): Promise<{ model: string; value: T } | null> {
+interface GeminiOptions {
+  /** JSON schema hint appended to generationConfig for structured output. */
+  responseSchema?: Record<string, unknown>;
+  /** Prior turns for a feedback loop (agentic context). */
+  history?: { role: 'user' | 'model'; text: string }[];
+  systemInstruction?: string;
+  temperature?: number;
+  /** Cap thinking to keep latency down (2.5 models "think" and can exceed timeouts). */
+  thinkingBudget?: number;
+}
+
+async function geminiJson<T>(
+  prompt: string,
+  parse: (value: unknown) => T,
+  parts: Record<string, unknown>[] = [],
+  opts: GeminiOptions = {}
+): Promise<{ model: string; value: T } | null> {
   const key = Deno.env.get('GEMINI_API_KEY');
-  const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-1.5-flash';
-  if (!key) return null;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash';
+  if (!key) {
+    console.warn('[gemini] no GEMINI_API_KEY set — using local fallback');
+    return null;
+  }
+
+  const contents = [
+    ...(opts.history ?? []).map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
+    { role: 'user' as const, parts: [{ text: prompt }, ...parts] },
+  ];
+  const generationConfig: Record<string, unknown> = {
+    responseMimeType: 'application/json',
+    temperature: opts.temperature ?? 0.6,
+    ...(opts.responseSchema ? { responseSchema: opts.responseSchema } : {}),
+    // Reduce/disable the model's thinking phase so real generations finish inside
+    // the timeout (2.5-flash otherwise takes 20s+ on multi-day programs).
+    thinkingConfig: { thinkingBudget: opts.thinkingBudget ?? 0 },
+  };
+  const body = JSON.stringify({
+    contents,
+    generationConfig,
+    ...(opts.systemInstruction ? { systemInstruction: { parts: [{ text: opts.systemInstruction }] } } : {}),
+  });
+
+  let lastError = '';
+  for (let attempt = 0; attempt < 3; attempt++) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12_000);
+    const timeout = setTimeout(() => controller.abort(), 45_000); // generous; real gens take 15-25s
     try {
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          signal: controller.signal,
-          body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: prompt }, ...parts] }],
-            generationConfig: { responseMimeType: 'application/json', temperature: 0.35 },
-          }),
-        }
+        { method: 'POST', headers: { 'content-type': 'application/json' }, signal: controller.signal, body }
       );
-      if (!response.ok) return null;
-      const body = await response.json();
-      const text = body?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (typeof text !== 'string') continue;
+      if (!response.ok) {
+        lastError = `HTTP ${response.status}: ${(await response.text()).slice(0, 200)}`;
+        // Retry transient server/rate errors; give up on 4xx client errors.
+        if (response.status >= 500 || response.status === 429) continue;
+        console.error(`[gemini] ${lastError}`);
+        return null;
+      }
+      const json = await response.json();
+      const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (typeof text !== 'string') {
+        lastError = `no text in response (finishReason: ${json?.candidates?.[0]?.finishReason})`;
+        continue;
+      }
       return { model, value: parse(extractJson(text)) };
-    } catch {
-      if (attempt === 1) return null;
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
+      // parse/validation error or abort → retry once more, then give up
     } finally {
       clearTimeout(timeout);
     }
   }
+  console.error(`[gemini] all attempts failed, falling back. Last error: ${lastError}`);
   return null;
 }
 
-export async function generateWeeklyReview(summary: WeeklySummary): Promise<GeneratedText> {
+export async function generateWeeklyReview(summary: WeeklySummary, contextLines: string[] = []): Promise<GeneratedText> {
   const sequence = mockSequence('GEMINI_MOCK_RESPONSE_SEQUENCE', validateWeeklyReview);
   if (sequence) return { model: 'mock-gemini', content: sequence };
   const mock = Deno.env.get('GEMINI_MOCK_RESPONSE');
   if (mock) {
     return { model: 'mock-gemini', content: validateWeeklyReview(JSON.parse(mock)) };
   }
-  const result = await geminiJson(weeklyReviewPrompt(summary), validateWeeklyReview);
+  const result = await geminiJson(weeklyReviewPrompt(summary, contextLines), validateWeeklyReview);
   return result ? { model: result.model, content: result.value } : fallbackReview(summary);
 }
 
@@ -215,27 +270,80 @@ export async function resolveIngredients(
   return rows;
 }
 
-export async function generateWorkoutProgram(input: WorkoutProgramQuestionnaire): Promise<GeneratedProgram> {
+export async function generateWorkoutProgram(
+  input: WorkoutProgramQuestionnaire,
+  ctx?: ProgramContext
+): Promise<GeneratedProgram> {
   const sequence = mockSequence('GEMINI_MOCK_PROGRAM_RESPONSE_SEQUENCE', (value) => generatedProgramSchema.parse(value));
   if (sequence) return sequence;
   const mock = Deno.env.get('GEMINI_MOCK_PROGRAM_RESPONSE');
   if (mock) return generatedProgramSchema.parse(JSON.parse(mock));
-  const result = await geminiJson(programGenPrompt(input), (value) => generatedProgramSchema.parse(value));
+
+  const result = await geminiJson(
+    programGenPrompt(input, ctx),
+    (value) => generatedProgramSchema.parse(value),
+    [],
+    { systemInstruction: PROGRAM_GEN_SYSTEM, temperature: 0.7 }
+  );
   if (result) return result.value;
-  const days = Array.from({ length: input.days_per_week }, (_, i) => ({
-    name: `Day ${i + 1}`,
-    rationale: i % 2 === 0 ? 'Strength focus with room to progress.' : 'Balanced accessories and recovery-friendly volume.',
-    exercises: [
-      { name: 'Bench Press', sets: 3, reps: input.experience === 'beginner' ? 8 : 6, rationale: 'Main push pattern.' },
-      { name: 'Squat', sets: 3, reps: 8, rationale: 'Main lower-body pattern.' },
-      { name: 'Lat Pulldown', sets: 3, reps: 10, rationale: 'Balances pressing volume.' },
+
+  // Fallback ONLY when Gemini is unreachable — build a real split, not 3 repeated
+  // lifts, so even the degraded path is usable.
+  return generatedProgramSchema.parse(buildFallbackProgram(input));
+}
+
+// A deterministic multi-day split used only if the model is unavailable.
+function buildFallbackProgram(input: WorkoutProgramQuestionnaire): GeneratedProgram {
+  const pool: Record<string, { name: string; sets: number; reps: number }[]> = {
+    Push: [
+      { name: 'Barbell Bench Press', sets: 4, reps: 6 },
+      { name: 'Overhead Press', sets: 3, reps: 8 },
+      { name: 'Incline Dumbbell Press', sets: 3, reps: 10 },
+      { name: 'Triceps Pushdown', sets: 3, reps: 12 },
     ],
-  }));
-  return generatedProgramSchema.parse({
-    title: `${input.goal} program`,
-    days,
-    notes: input.constraints ? [`Adjusted for: ${input.constraints}`] : [],
-  });
+    Pull: [
+      { name: 'Deadlift', sets: 3, reps: 5 },
+      { name: 'Pull-Up', sets: 3, reps: 8 },
+      { name: 'Barbell Row', sets: 3, reps: 10 },
+      { name: 'Face Pull', sets: 3, reps: 15 },
+    ],
+    Legs: [
+      { name: 'Back Squat', sets: 4, reps: 6 },
+      { name: 'Romanian Deadlift', sets: 3, reps: 8 },
+      { name: 'Leg Press', sets: 3, reps: 12 },
+      { name: 'Calf Raise', sets: 4, reps: 15 },
+    ],
+    Upper: [
+      { name: 'Barbell Bench Press', sets: 4, reps: 6 },
+      { name: 'Barbell Row', sets: 4, reps: 8 },
+      { name: 'Overhead Press', sets: 3, reps: 10 },
+      { name: 'Lat Pulldown', sets: 3, reps: 12 },
+    ],
+    'Full Body': [
+      { name: 'Back Squat', sets: 3, reps: 8 },
+      { name: 'Barbell Bench Press', sets: 3, reps: 8 },
+      { name: 'Barbell Row', sets: 3, reps: 10 },
+      { name: 'Plank', sets: 3, reps: 30 },
+    ],
+  };
+  const splits: Record<number, string[]> = {
+    1: ['Full Body'],
+    2: ['Full Body', 'Full Body'],
+    3: ['Push', 'Pull', 'Legs'],
+    4: ['Upper', 'Legs', 'Push', 'Pull'],
+    5: ['Push', 'Pull', 'Legs', 'Upper', 'Legs'],
+    6: ['Push', 'Pull', 'Legs', 'Push', 'Pull', 'Legs'],
+  };
+  const plan = splits[Math.min(6, Math.max(1, input.days_per_week))] ?? splits[3];
+  return {
+    title: `${input.goal} — ${input.days_per_week}-day program`,
+    days: plan.map((focus, i) => ({
+      name: `Day ${i + 1}: ${focus}`,
+      rationale: `${focus} focus.`,
+      exercises: (pool[focus] ?? pool['Full Body']).map((e) => ({ ...e, rationale: '' })),
+    })),
+    notes: input.constraints ? [`Work around: ${input.constraints}`] : [],
+  };
 }
 
 export async function generateRoutineDiff(reason: string, context?: unknown): Promise<RoutineDiff> {
@@ -288,12 +396,12 @@ export async function analyzePhysique(photos: string[], summary: WeeklySummary, 
   };
 }
 
-export async function generateCouncilPlan(summary: WeeklySummary, detectorMessages: string[]): Promise<{ model: string; promptVersion: string; plan: CouncilPlan }> {
+export async function generateCouncilPlan(summary: WeeklySummary, detectorMessages: string[], contextLines: string[] = []): Promise<{ model: string; promptVersion: string; plan: CouncilPlan }> {
   const sequence = mockSequence('GEMINI_MOCK_COUNCIL_RESPONSE_SEQUENCE', (value) => councilPlanSchema.parse(value));
   if (sequence) return { model: 'mock-gemini', promptVersion: COUNCIL_PROMPT_VERSION, plan: sequence };
   const mock = Deno.env.get('GEMINI_MOCK_COUNCIL_RESPONSE');
   if (mock) return { model: 'mock-gemini', promptVersion: COUNCIL_PROMPT_VERSION, plan: councilPlanSchema.parse(JSON.parse(mock)) };
-  const result = await geminiJson(councilPrompt(summary, detectorMessages), (value) => councilPlanSchema.parse(value));
+  const result = await geminiJson(councilPrompt(summary, detectorMessages, contextLines), (value) => councilPlanSchema.parse(value));
   if (result) return { model: result.model, promptVersion: COUNCIL_PROMPT_VERSION, plan: result.value };
   return {
     model: 'local-council-fallback',
@@ -308,4 +416,108 @@ export async function generateCouncilPlan(summary: WeeklySummary, detectorMessag
       checkins: detectorMessages.map((message, i) => ({ detector: `detector_${i}`, message })),
     }),
   };
+}
+
+// ── Coach memory distillation (NWE-119) ─────────────────────────────────────
+// Returns the new memory text, or null when the model is unreachable (memory is
+// then left unchanged — we never fabricate a memory locally).
+export async function distillCoachMemory(input: {
+  previousMemory: string;
+  summary: WeeklySummary;
+  recentDecisions: string[];
+  profileLines: string[];
+}): Promise<{ text: string; promptVersion: string } | null> {
+  const parseMemory = (value: unknown): { text: string } => {
+    const row = value as { text?: unknown };
+    if (typeof row.text !== 'string' || row.text.length === 0) throw new Error('Memory response missing text.');
+    return { text: row.text.slice(0, COACH_MEMORY_MAX_CHARS) };
+  };
+  const sequence = mockSequence('GEMINI_MOCK_MEMORY_RESPONSE_SEQUENCE', parseMemory);
+  if (sequence) return { text: sequence.text, promptVersion: COACH_MEMORY_PROMPT_VERSION };
+  const mock = Deno.env.get('GEMINI_MOCK_MEMORY_RESPONSE');
+  if (mock) return { text: parseMemory(JSON.parse(mock)).text, promptVersion: COACH_MEMORY_PROMPT_VERSION };
+
+  const result = await geminiJson(coachMemoryPrompt(input), parseMemory, [], { temperature: 0.3 });
+  if (!result) return null;
+  return { text: result.value.text, promptVersion: COACH_MEMORY_PROMPT_VERSION };
+}
+
+// ── Program refinement chat (NWE-120) ───────────────────────────────────────
+// Two-channel turn: { reply, updated_program? }. Returns null when the model is
+// unreachable — the route maps that to UPSTREAM_ERROR (no fake coach replies).
+export async function refineProgram(input: {
+  program: GeneratedProgram;
+  messages: CoachChatMessage[];
+  userMessage: string;
+  contextLines: string[];
+}): Promise<{ model: string; promptVersion: string; turn: RefineProgramResponse } | null> {
+  const parseTurn = (value: unknown) => refineProgramResponseSchema.parse(value);
+  const sequence = mockSequence('GEMINI_MOCK_REFINE_RESPONSE_SEQUENCE', parseTurn);
+  if (sequence) return { model: 'mock-gemini', promptVersion: PROGRAM_REFINE_PROMPT_VERSION, turn: sequence };
+  const mock = Deno.env.get('GEMINI_MOCK_REFINE_RESPONSE');
+  if (mock) return { model: 'mock-gemini', promptVersion: PROGRAM_REFINE_PROMPT_VERSION, turn: parseTurn(JSON.parse(mock)) };
+
+  const result = await geminiJson(
+    programRefinePrompt({ program: input.program, contextLines: input.contextLines, userMessage: input.userMessage }),
+    parseTurn,
+    [],
+    { systemInstruction: PROGRAM_REFINE_SYSTEM, history: refineHistory(input.messages), temperature: 0.6 }
+  );
+  if (!result) return null;
+  return { model: result.model, promptVersion: PROGRAM_REFINE_PROMPT_VERSION, turn: result.value };
+}
+
+// ── AI meal planner (NWE-121) ───────────────────────────────────────────────
+function fallbackMealPlan(ctx: MealPlanContext): MealPlan {
+  const kcal = ctx.targets.calories ?? 2000;
+  const p = ctx.targets.protein_g ?? Math.round((kcal * 0.3) / 4);
+  const per = Math.max(1, ctx.mealsPerDay);
+  const share = (n: number) => Math.round(n / per);
+  const types: MealPlan['meals'][number]['meal_type'][] = ['breakfast', 'lunch', 'dinner', 'snack', 'snack', 'snack'];
+  const meals = Array.from({ length: per }, (_, i) => ({
+    name: `Balanced ${types[i] ?? 'snack'}`,
+    meal_type: types[i] ?? 'snack',
+    macros: { calories: share(kcal), protein_g: share(p), carbs_g: share(Math.round((kcal * 0.4) / 4)), fat_g: share(Math.round((kcal * 0.3) / 9)) },
+    recipe: { ingredients: ['a lean protein', 'a whole-grain or starch', 'vegetables'], steps: ['Combine and cook simply to taste.'] },
+    note: '',
+  }));
+  return mealPlanSchema.parse({
+    title: `${ctx.isTrainingDay ? 'Training-day' : 'Rest-day'} plan`,
+    meals,
+    day_totals: mealPlanTotals(meals),
+    notes: ['Auto-generated fallback — regenerate for a tailored plan.'],
+  });
+}
+
+export async function generateMealPlan(ctx: MealPlanContext): Promise<{ model: string; promptVersion: string; plan: MealPlan }> {
+  const sequence = mockSequence('GEMINI_MOCK_MEALPLAN_RESPONSE_SEQUENCE', (v) => mealPlanSchema.parse(v));
+  if (sequence) return { model: 'mock-gemini', promptVersion: MEAL_PLAN_PROMPT_VERSION, plan: sequence };
+  const mock = Deno.env.get('GEMINI_MOCK_MEALPLAN_RESPONSE');
+  if (mock) return { model: 'mock-gemini', promptVersion: MEAL_PLAN_PROMPT_VERSION, plan: mealPlanSchema.parse(JSON.parse(mock)) };
+
+  const result = await geminiJson(mealPlanPrompt(ctx), (v) => mealPlanSchema.parse(v), [], { systemInstruction: MEAL_PLAN_SYSTEM, temperature: 0.7 });
+  if (result) return { model: result.model, promptVersion: MEAL_PLAN_PROMPT_VERSION, plan: result.value };
+  return { model: 'local-mealplan-fallback', promptVersion: MEAL_PLAN_PROMPT_VERSION, plan: fallbackMealPlan(ctx) };
+}
+
+export async function refineMealPlan(input: {
+  plan: MealPlan;
+  messages: CoachChatMessage[];
+  userMessage: string;
+  contextLines: string[];
+}): Promise<{ model: string; promptVersion: string; turn: RefineMealPlanResponse } | null> {
+  const parseTurn = (v: unknown) => refineMealPlanResponseSchema.parse(v);
+  const sequence = mockSequence('GEMINI_MOCK_MEALPLAN_REFINE_SEQUENCE', parseTurn);
+  if (sequence) return { model: 'mock-gemini', promptVersion: MEAL_PLAN_REFINE_PROMPT_VERSION, turn: sequence };
+  const mock = Deno.env.get('GEMINI_MOCK_MEALPLAN_REFINE');
+  if (mock) return { model: 'mock-gemini', promptVersion: MEAL_PLAN_REFINE_PROMPT_VERSION, turn: parseTurn(JSON.parse(mock)) };
+
+  const result = await geminiJson(
+    mealPlanRefinePrompt({ plan: input.plan, contextLines: input.contextLines, userMessage: input.userMessage }),
+    parseTurn,
+    [],
+    { systemInstruction: MEAL_PLAN_REFINE_SYSTEM, history: mealPlanRefineHistory(input.messages), temperature: 0.6 }
+  );
+  if (!result) return null;
+  return { model: result.model, promptVersion: MEAL_PLAN_REFINE_PROMPT_VERSION, turn: result.value };
 }

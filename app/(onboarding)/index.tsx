@@ -1,5 +1,8 @@
 import { computeTargets, todayISO } from '@shared';
-import type { ActivityLevel, GoalType, Sex } from '@shared';
+import type { ActivityLevel, CoachingProfile, GoalType, Sex } from '@shared';
+
+type DietaryStyle = NonNullable<CoachingProfile['dietary_style']>;
+const DIETARY_STYLES: DietaryStyle[] = ['omnivore', 'vegetarian', 'vegan', 'pescatarian', 'halal', 'kosher', 'other'];
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
@@ -13,7 +16,7 @@ import { useUpdateProfile, useUpsertWeight } from '@/lib/hooks';
 
 const ACTIVITIES = Object.keys(ACTIVITY_LABELS) as ActivityLevel[];
 const GOALS = Object.keys(GOAL_LABELS) as GoalType[];
-const STEPS = ['welcome', 'body', 'activity', 'goal', 'weight', 'done'] as const;
+const STEPS = ['welcome', 'body', 'activity', 'goal', 'coach', 'weight', 'done'] as const;
 
 export default function OnboardingWizard() {
   const router = useRouter();
@@ -27,6 +30,12 @@ export default function OnboardingWizard() {
   const [heightCm, setHeightCm] = useState('');
   const [activity, setActivity] = useState<ActivityLevel>('moderate');
   const [goal, setGoal] = useState<GoalType>('maintain');
+  const [coachMotivation, setCoachMotivation] = useState('');
+  const [coachDislikes, setCoachDislikes] = useState('');
+  const [coachTone, setCoachTone] = useState<'gentle' | 'balanced' | 'direct'>('balanced');
+  const [dietaryStyle, setDietaryStyle] = useState<DietaryStyle>('omnivore');
+  const [allergies, setAllergies] = useState('');
+  const [mealsPerDay, setMealsPerDay] = useState(3);
   const [targetWeight, setTargetWeight] = useState('');
   const [weight, setWeight] = useState('');
   const [saving, setSaving] = useState(false);
@@ -48,6 +57,14 @@ export default function OnboardingWizard() {
         activity_level: activity,
         goal_type: goal,
         target_weight_kg: parseFloat(targetWeight) || null,
+        coaching_profile: {
+          motivation: coachMotivation.trim() || null,
+          dislikes: coachDislikes.split(',').map((d) => d.trim()).filter(Boolean).slice(0, 10),
+          coach_tone: coachTone,
+          dietary_style: dietaryStyle,
+          allergies: allergies.split(',').map((a) => a.trim()).filter(Boolean).slice(0, 15),
+          meals_per_day: mealsPerDay,
+        },
       });
       await refreshProfile();
       setStep(STEPS.indexOf('done'));
@@ -147,6 +164,47 @@ export default function OnboardingWizard() {
             </>
           )}
 
+          {current === 'coach' && (
+            <>
+              <Text style={styles.title}>Tell your coach</Text>
+              <Muted style={styles.lead}>
+                Optional — this shapes every plan and review your coaches write for you.
+              </Muted>
+              <Input
+                placeholder="What's driving you? (e.g. more energy for my kids)"
+                value={coachMotivation}
+                onChangeText={setCoachMotivation}
+              />
+              <Input
+                placeholder="Anything you dislike? (e.g. running, burpees)"
+                value={coachDislikes}
+                onChangeText={setCoachDislikes}
+              />
+              <ChipRow>
+                {(['gentle', 'balanced', 'direct'] as const).map((tone) => (
+                  <Chip key={tone} label={tone} active={coachTone === tone} onPress={() => setCoachTone(tone)} />
+                ))}
+              </ChipRow>
+              <Muted style={styles.lead}>How you eat (your nutritionist plans around this):</Muted>
+              <ChipRow>
+                {DIETARY_STYLES.map((style) => (
+                  <Chip key={style} label={style} active={dietaryStyle === style} onPress={() => setDietaryStyle(style)} />
+                ))}
+              </ChipRow>
+              <Input
+                placeholder="Allergies, comma-separated (never put in a plan)"
+                value={allergies}
+                onChangeText={setAllergies}
+              />
+              <Muted>Meals per day</Muted>
+              <ChipRow>
+                {[2, 3, 4, 5].map((n) => (
+                  <Chip key={n} label={`${n}`} active={mealsPerDay === n} onPress={() => setMealsPerDay(n)} />
+                ))}
+              </ChipRow>
+            </>
+          )}
+
           {current === 'weight' && (
             <>
               <Text style={styles.title}>Your current weight</Text>
@@ -177,7 +235,7 @@ export default function OnboardingWizard() {
 
         <View style={styles.footer}>
           {current === 'welcome' && <Button title="Get started" onPress={() => setStep(step + 1)} />}
-          {(current === 'body' || current === 'activity' || current === 'goal') && (
+          {(current === 'body' || current === 'activity' || current === 'goal' || current === 'coach') && (
             <Button title="Continue" onPress={() => setStep(step + 1)} />
           )}
           {current === 'weight' && (

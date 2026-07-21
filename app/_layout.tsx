@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator } from 'react-native';
 import 'react-native-reanimated';
 
@@ -10,6 +10,7 @@ import { ErrorBanner } from '@/components/ErrorBanner';
 import { SessionProvider, useSession } from '@/components/SessionProvider';
 import { View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
+import { initAuthDeepLinks } from '@/lib/authDeepLink';
 import { queryClient } from '@/lib/queryClient';
 
 export {
@@ -58,13 +59,25 @@ function RootLayoutNav() {
   const { session, profile, loading } = useSession();
   const segments = useSegments();
   const router = useRouter();
+  // True while handling a password-recovery deep link — the user has a (recovery)
+  // session but must set a new password before entering the app.
+  const [recovering, setRecovering] = useState(false);
 
   // A profile is "incomplete" until the core body stats exist (NWE-104).
   const profileIncomplete =
     !!profile && (!profile.sex || !profile.birth_year || !profile.height_cm);
 
+  // Catch Supabase auth deep links (email confirmation, password reset) — on
+  // native, supabase-js can't auto-detect them, so we establish the session here.
   useEffect(() => {
-    if (loading) return;
+    return initAuthDeepLinks(() => {
+      setRecovering(true);
+      router.replace('/(auth)/reset-password');
+    });
+  }, [router]);
+
+  useEffect(() => {
+    if (loading || recovering) return; // don't fight the recovery redirect
     const inAuthGroup = segments[0] === '(auth)';
     const inOnboarding = segments[0] === '(onboarding)';
     if (!session && !inAuthGroup) {
@@ -75,7 +88,7 @@ function RootLayoutNav() {
       // Signed in but never set up → the wizard (skippable from within).
       router.replace('/(onboarding)');
     }
-  }, [session, loading, segments, profileIncomplete]);
+  }, [session, loading, segments, profileIncomplete, recovering]);
 
   // Hold on a neutral splash until the session resolves, so no tab flashes its
   // empty/wrong state before the auth redirect runs (NWE-101 AC#3).

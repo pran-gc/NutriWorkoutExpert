@@ -42,13 +42,18 @@ export default function SignInScreen() {
         });
         if (error) Alert.alert('Sign in failed', error.message);
       } else {
-        const { error } = await supabase.auth.signUp({ email: email.trim(), password });
+        const { error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          // Deep-link the confirmation email back into the app (not localhost).
+          options: { emailRedirectTo: Linking.createURL('/') },
+        });
         if (error) {
           Alert.alert('Sign up failed', error.message);
         } else {
           Alert.alert(
             'Check your inbox',
-            'If email confirmation is enabled, confirm your address before signing in.'
+            'We sent a confirmation link. Tap it on this device to verify your email, then sign in.'
           );
         }
       }

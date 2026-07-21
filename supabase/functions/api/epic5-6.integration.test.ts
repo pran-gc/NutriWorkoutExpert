@@ -46,8 +46,11 @@ Deno.test('insights: weekly summary and generated review are idempotent', async 
   }
 });
 
-Deno.test('cron: weekly review generation is idempotent for active users', async () => {
+Deno.test('cron: weekly review generation is idempotent for active users (with valid secret)', async () => {
   const a = await createTestUser();
+  const prevSecret = Deno.env.get('CRON_SECRET');
+  Deno.env.set('CRON_SECRET', 'test-cron-secret');
+  const auth = { 'x-cron-secret': 'test-cron-secret' };
   try {
     await apiAs(a.token, 'POST', '/food-logs', {
       food_name: 'Cron meal',
@@ -60,14 +63,36 @@ Deno.test('cron: weekly review generation is idempotent for active users', async
       source: 'manual',
       logged_on: TODAY,
     });
-    const first = await apiAs(null, 'POST', '/cron/weekly-review');
-    const second = await apiAs(null, 'POST', '/cron/weekly-review');
+    const first = await apiAs(null, 'POST', '/cron/weekly-review', undefined, auth);
+    const second = await apiAs(null, 'POST', '/cron/weekly-review', undefined, auth);
     assertEquals(first.status, 200);
     assertEquals(second.status, 200);
     assertEquals(first.body.data.generated >= 1, true);
     assertEquals(second.body.data.generated, 0);
   } finally {
+    if (prevSecret === undefined) Deno.env.delete('CRON_SECRET');
+    else Deno.env.set('CRON_SECRET', prevSecret);
     await deleteTestUser(a.id);
+  }
+});
+
+Deno.test('cron: service-role endpoint fails closed without the secret and rejects a wrong one', async () => {
+  const prevSecret = Deno.env.get('CRON_SECRET');
+  try {
+    // Secret configured, but caller sends none / a wrong one → rejected (403).
+    Deno.env.set('CRON_SECRET', 'test-cron-secret');
+    const noHeader = await apiAs(null, 'POST', '/cron/weekly-review');
+    const wrongHeader = await apiAs(null, 'POST', '/cron/weekly-review', undefined, { 'x-cron-secret': 'nope' });
+    assertEquals(noHeader.status, 403);
+    assertEquals(wrongHeader.status, 403);
+
+    // Secret NOT configured → the endpoint refuses rather than running unauthenticated.
+    Deno.env.delete('CRON_SECRET');
+    const unconfigured = await apiAs(null, 'POST', '/cron/weekly-review', undefined, { 'x-cron-secret': 'anything' });
+    assertEquals(unconfigured.status, 500);
+  } finally {
+    if (prevSecret === undefined) Deno.env.delete('CRON_SECRET');
+    else Deno.env.set('CRON_SECRET', prevSecret);
   }
 });
 
@@ -229,29 +254,26 @@ Deno.test('coaches: council, generated program save, and adaptation suggestion',
       equipment: ['gym'],
     });
     assertEquals(program.status, 200);
-    assertEquals(program.body.data.days.length, 2);
+    assertEquals(program.body.data.program.days.length, 2);
+    assertEquals(typeof program.body.data.insight_id, 'string');
 
-    for (let i = 0; i < 2; i++) {
-      await apiAs(a.token, 'POST', '/routines/generate', {
+    const saved = await apiAs(a.token, 'POST', '/routines/generated/save', {
+      program: program.body.data.program,
+    });
+    assertEquals(saved.status, 200);
+    assertEquals(saved.body.data.length, 2);
+
+    // Daily draft quota is temporarily disabled while the program coach is under
+    // active product testing; repeated generations should keep working.
+    for (let i = 0; i < 4; i++) {
+      const generated = await apiAs(a.token, 'POST', '/routines/generate', {
         goal: 'Build strength',
         experience: 'beginner',
         days_per_week: 2,
         equipment: ['gym'],
       });
+      assertEquals(generated.status, 200);
     }
-    const quota = await apiAs(a.token, 'POST', '/routines/generate', {
-      goal: 'Build strength',
-      experience: 'beginner',
-      days_per_week: 2,
-      equipment: ['gym'],
-    });
-    assertEquals(quota.status, 429);
-
-    const saved = await apiAs(a.token, 'POST', '/routines/generated/save', {
-      program: program.body.data,
-    });
-    assertEquals(saved.status, 200);
-    assertEquals(saved.body.data.length, 2);
 
     const routineId = saved.body.data[0].id;
     const diff = await apiAs(a.token, 'POST', `/routines/${routineId}/adapt`);
@@ -447,6 +469,214 @@ Deno.test('gamification: streaks, quests, and badges derive from real logs', asy
       true
     );
   } finally {
+    await deleteTestUser(a.id);
+  }
+});
+
+Deno.test('coach awareness: coaching profile round-trips and refine chat is two-channel (NWE-118/120)', async () => {
+  const a = await createTestUser();
+  const prevRefine = Deno.env.get('GEMINI_MOCK_REFINE_RESPONSE');
+  try {
+    // 118: stated intent round-trips through PATCH /me.
+    const patched = await apiAs(a.token, 'PATCH', '/me', {
+      coaching_profile: {
+        motivation: 'feel strong on hikes',
+        dislikes: ['running'],
+        coach_tone: 'direct',
+      },
+    });
+    assertEquals(patched.status, 200);
+    assertEquals(patched.body.data.coaching_profile.dislikes, ['running']);
+
+    // Generate a draft (mocked model) to refine.
+    Deno.env.set('GEMINI_MOCK_PROGRAM_RESPONSE', JSON.stringify({
+      title: 'Mock plan',
+      days: [
+        { name: 'Day 1', rationale: 'push', exercises: [{ name: 'Bench Press', sets: 3, reps: 8, rationale: 'push' }] },
+        { name: 'Day 2', rationale: 'pull', exercises: [{ name: 'Barbell Row', sets: 3, reps: 8, rationale: 'pull' }] },
+      ],
+      notes: [],
+    }));
+    const generated = await apiAs(a.token, 'POST', '/routines/generate', {
+      goal: 'strength', experience: 'beginner', days_per_week: 2, equipment: ['gym'],
+    });
+    assertEquals(generated.status, 200);
+    const insightId = generated.body.data.insight_id;
+
+    // 120 turn 1: question only → reply, no program change.
+    Deno.env.set('GEMINI_MOCK_REFINE_RESPONSE', JSON.stringify({ reply: 'Rows balance the pressing volume.' }));
+    const turn1 = await apiAs(a.token, 'POST', '/routines/generated/refine', {
+      insight_id: insightId, message: 'why rows?',
+    });
+    assertEquals(turn1.status, 200);
+    assertEquals(turn1.body.data.updated_program, null);
+
+    // 120 turn 2: change requested → revised program returned and persisted as draft.
+    Deno.env.set('GEMINI_MOCK_REFINE_RESPONSE', JSON.stringify({
+      reply: 'Swapped rows for lat pulldown.',
+      updated_program: {
+        title: 'Mock plan v2',
+        days: [
+          { name: 'Day 1', rationale: 'push', exercises: [{ name: 'Bench Press', sets: 3, reps: 8, rationale: 'push' }] },
+          { name: 'Day 2', rationale: 'pull', exercises: [{ name: 'Lat Pulldown', sets: 3, reps: 10, rationale: 'pull' }] },
+        ],
+        notes: [],
+      },
+    }));
+    const turn2 = await apiAs(a.token, 'POST', '/routines/generated/refine', {
+      insight_id: insightId, message: 'swap rows for lat pulldown',
+    });
+    assertEquals(turn2.status, 200);
+    assertEquals(turn2.body.data.updated_program.title, 'Mock plan v2');
+
+    // Cross-user: B cannot refine A's draft.
+    const b = await createTestUser();
+    try {
+      const stolen = await apiAs(b.token, 'POST', '/routines/generated/refine', {
+        insight_id: insightId, message: 'hi',
+      });
+      assertEquals(stolen.status, 404);
+    } finally {
+      await deleteTestUser(b.id);
+    }
+  } finally {
+    Deno.env.delete('GEMINI_MOCK_PROGRAM_RESPONSE');
+    if (prevRefine === undefined) Deno.env.delete('GEMINI_MOCK_REFINE_RESPONSE');
+    else Deno.env.set('GEMINI_MOCK_REFINE_RESPONSE', prevRefine);
+    await deleteTestUser(a.id);
+  }
+});
+
+Deno.test('coach memory: weekly run distills and stores memory; clear works (NWE-119)', async () => {
+  const a = await createTestUser();
+  const prevMemory = Deno.env.get('GEMINI_MOCK_MEMORY_RESPONSE');
+  try {
+    Deno.env.set('GEMINI_MOCK_MEMORY_RESPONSE', JSON.stringify({ text: 'Prefers short sessions; dislikes running.' }));
+    await apiAs(a.token, 'POST', '/food-logs', {
+      food_name: 'Memory meal', meal_type: 'lunch', quantity_g: 100,
+      calories: 400, protein_g: 30, carbs_g: 40, fat_g: 10, source: 'manual', logged_on: TODAY,
+    });
+    const generated = await apiAs(a.token, 'POST', '/insights/generate', { week: TODAY });
+    assertEquals(generated.status, 200);
+
+    const me = await apiAs(a.token, 'GET', '/me');
+    assertEquals(me.body.data.coach_memory.text, 'Prefers short sessions; dislikes running.');
+
+    // Clear memory → {}.
+    const cleared = await apiAs(a.token, 'PATCH', '/me', { coach_memory: null });
+    assertEquals(cleared.status, 200);
+    assertEquals(cleared.body.data.coach_memory.text ?? '', '');
+  } finally {
+    if (prevMemory === undefined) Deno.env.delete('GEMINI_MOCK_MEMORY_RESPONSE');
+    else Deno.env.set('GEMINI_MOCK_MEMORY_RESPONSE', prevMemory);
+    await deleteTestUser(a.id);
+  }
+});
+
+Deno.test('generated save: coach-style string reps ("8-12", "AMRAP", timed) store as sane ints (regression)', async () => {
+  const a = await createTestUser();
+  try {
+    const saved = await apiAs(a.token, 'POST', '/routines/generated/save', {
+      program: {
+        title: 'String reps',
+        days: [{
+          name: 'Day 1',
+          rationale: '',
+          exercises: [
+            { name: 'Bench Press', sets: 3, reps: '8-12', rationale: '' },
+            { name: 'Push-Up', sets: '3', reps: 'AMRAP', rationale: '' },
+            { name: 'Plank', sets: 3, reps: '30-60 seconds hold', rationale: '' },
+          ],
+        }],
+        notes: [],
+      },
+    });
+    assertEquals(saved.status, 200);
+    const routines = await apiAs(a.token, 'GET', '/routines');
+    const items = routines.body.data[0].routine_exercises;
+    const byName = (n: string) => items.find((i: { exercise: { name: string } }) => i.exercise.name === n);
+    assertEquals(byName('Bench Press').target_reps, 8);   // lower bound of "8-12"
+    assertEquals(byName('Bench Press').target_sets, 3);
+    assertEquals(byName('Push-Up').target_reps, null);    // AMRAP → no fixed target
+    assertEquals(byName('Push-Up').target_sets, 3);       // "3" → 3
+    assertEquals(byName('Plank').target_reps, null);      // timed hold → null
+  } finally {
+    await deleteTestUser(a.id);
+  }
+});
+
+Deno.test('nutrition: generate → refine → log-meal, with cross-user isolation (NWE-121)', async () => {
+  const a = await createTestUser();
+  const prevPlan = Deno.env.get('GEMINI_MOCK_MEALPLAN_RESPONSE');
+  const prevRefine = Deno.env.get('GEMINI_MOCK_MEALPLAN_REFINE');
+  try {
+    // Set macro targets + dietary style so context is populated.
+    await apiAs(a.token, 'PATCH', '/me', {
+      calorie_target: 2200, protein_target_g: 160, carbs_target_g: 220, fat_target_g: 70,
+      coaching_profile: { dietary_style: 'vegetarian', allergies: ['peanuts'], meals_per_day: 3 },
+    });
+
+    Deno.env.set('GEMINI_MOCK_MEALPLAN_RESPONSE', JSON.stringify({
+      title: 'Veg training-day plan',
+      meals: [
+        { name: 'Tofu scramble', meal_type: 'breakfast', macros: { calories: 500, protein_g: 40, carbs_g: 45, fat_g: 18 }, recipe: { ingredients: ['tofu', 'spinach'], steps: ['scramble'] } },
+        { name: 'Lentil bowl', meal_type: 'lunch', macros: { calories: 800, protein_g: 55, carbs_g: 90, fat_g: 22 }, recipe: { ingredients: ['lentils', 'rice'], steps: ['cook'] } },
+        { name: 'Paneer dinner', meal_type: 'dinner', macros: { calories: 900, protein_g: 65, carbs_g: 85, fat_g: 30 }, recipe: { ingredients: ['paneer'], steps: ['grill'] } },
+      ],
+      notes: [],
+    }));
+    const generated = await apiAs(a.token, 'POST', '/nutrition/plan', { date: TODAY });
+    assertEquals(generated.status, 200);
+    assertEquals(generated.body.data.plan.meals.length, 3);
+    const insightId = generated.body.data.insight_id;
+
+    // Refine, reply-only → no plan change.
+    Deno.env.set('GEMINI_MOCK_MEALPLAN_REFINE', JSON.stringify({ reply: 'Lentils cover your fiber and protein.' }));
+    const turn1 = await apiAs(a.token, 'POST', '/nutrition/plan/refine', { insight_id: insightId, message: 'why lentils?' });
+    assertEquals(turn1.status, 200);
+    assertEquals(turn1.body.data.updated_plan, null);
+
+    // Refine, change requested → revised plan persisted as draft.
+    Deno.env.set('GEMINI_MOCK_MEALPLAN_REFINE', JSON.stringify({
+      reply: 'Swapped lunch for a chickpea bowl.',
+      updated_plan: {
+        title: 'Veg training-day plan v2',
+        meals: [
+          { name: 'Tofu scramble', meal_type: 'breakfast', macros: { calories: 500, protein_g: 40, carbs_g: 45, fat_g: 18 }, recipe: { ingredients: ['tofu'], steps: ['scramble'] } },
+          { name: 'Chickpea bowl', meal_type: 'lunch', macros: { calories: 780, protein_g: 50, carbs_g: 95, fat_g: 20 }, recipe: { ingredients: ['chickpeas'], steps: ['cook'] } },
+          { name: 'Paneer dinner', meal_type: 'dinner', macros: { calories: 900, protein_g: 65, carbs_g: 85, fat_g: 30 }, recipe: { ingredients: ['paneer'], steps: ['grill'] } },
+        ],
+        notes: [],
+      },
+    }));
+    const turn2 = await apiAs(a.token, 'POST', '/nutrition/plan/refine', { insight_id: insightId, message: 'swap lunch for chickpeas' });
+    assertEquals(turn2.status, 200);
+    assertEquals(turn2.body.data.updated_plan.meals[1].name, 'Chickpea bowl');
+
+    // "I had this" logs the (revised) meal's macros to food_logs.
+    const logged = await apiAs(a.token, 'POST', '/nutrition/plan/log-meal', { insight_id: insightId, meal_index: 1, logged_on: TODAY });
+    assertEquals(logged.status, 200);
+    assertEquals(logged.body.data.food_name, 'Chickpea bowl');
+    assertEquals(logged.body.data.calories, 780);
+
+    const logs = await apiAs(a.token, 'GET', `/food-logs?date=${TODAY}`);
+    assertEquals(logs.body.data.some((l: { food_name: string }) => l.food_name === 'Chickpea bowl'), true);
+
+    // Cross-user: B cannot refine or log from A's draft.
+    const b = await createTestUser();
+    try {
+      const stolen = await apiAs(b.token, 'POST', '/nutrition/plan/refine', { insight_id: insightId, message: 'hi' });
+      assertEquals(stolen.status, 404);
+      const stolenLog = await apiAs(b.token, 'POST', '/nutrition/plan/log-meal', { insight_id: insightId, meal_index: 0, logged_on: TODAY });
+      assertEquals(stolenLog.status, 404);
+    } finally {
+      await deleteTestUser(b.id);
+    }
+  } finally {
+    if (prevPlan === undefined) Deno.env.delete('GEMINI_MOCK_MEALPLAN_RESPONSE');
+    else Deno.env.set('GEMINI_MOCK_MEALPLAN_RESPONSE', prevPlan);
+    if (prevRefine === undefined) Deno.env.delete('GEMINI_MOCK_MEALPLAN_REFINE');
+    else Deno.env.set('GEMINI_MOCK_MEALPLAN_REFINE', prevRefine);
     await deleteTestUser(a.id);
   }
 });

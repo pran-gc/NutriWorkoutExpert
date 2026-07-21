@@ -279,12 +279,20 @@ export default function FoodScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <DateBar date={date} onChange={setDate} />
-        <Pressable
-          accessibilityLabel="Food analytics"
-          onPress={() => router.push('/food-analytics')}
-          style={styles.analyticsLink}>
-          <Text style={styles.analyticsText}>View food analytics →</Text>
-        </Pressable>
+        <View style={styles.topLinks}>
+          <Pressable
+            accessibilityLabel="Food analytics"
+            onPress={() => router.push('/food-analytics')}
+            style={styles.analyticsLink}>
+            <Text style={styles.analyticsText}>View food analytics →</Text>
+          </Pressable>
+          <Pressable
+            accessibilityLabel="Plan meals with AI"
+            onPress={() => router.push({ pathname: '/meal-plan', params: { date } })}
+            style={styles.analyticsLink}>
+            <Text style={styles.analyticsText}>Plan meals with AI →</Text>
+          </Pressable>
+        </View>
 
         <Card>
           <View style={styles.snapHeader}>
@@ -602,6 +610,11 @@ const styles = StyleSheet.create({
   logCalories: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  topLinks: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 16,
   },
   analyticsLink: {
     alignSelf: 'flex-end',

@@ -4,6 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type {
+  MealPlan,
   CreateFavoriteInput,
   CreateExerciseInput,
   CreateFoodLogInput,
@@ -599,7 +600,49 @@ export function useGenerateProgram() {
       equipment: string[];
       constraints?: string;
       adjustment?: string;
-    }) => unwrap<GeneratedProgram>(rpc.api.routines.generate.$post(arg({ json: input }))),
+    }) =>
+      unwrap<{ program: GeneratedProgram; insight_id: string }>(
+        rpc.api.routines.generate.$post(arg({ json: input }))
+      ),
+  });
+}
+
+// Program refinement chat (NWE-120): one turn = message in, {reply, revision?} out.
+export function useRefineProgram() {
+  return useMutation({
+    mutationFn: (input: { insight_id: string; message: string }) =>
+      unwrap<{ reply: string; updated_program: GeneratedProgram | null }>(
+        rpc.api.routines.generated.refine.$post(arg({ json: input }))
+      ),
+  });
+}
+
+// ── AI meal planner (NWE-121) ────────────────────────────────────────────────
+export function useGenerateMealPlan() {
+  return useMutation({
+    mutationFn: (input: { date: string }) =>
+      unwrap<{ plan: MealPlan; insight_id: string }>(rpc.api.nutrition.plan.$post(arg({ json: input }))),
+  });
+}
+
+export function useRefineMealPlan() {
+  return useMutation({
+    mutationFn: (input: { insight_id: string; message: string }) =>
+      unwrap<{ reply: string; updated_plan: MealPlan | null }>(
+        rpc.api.nutrition.plan.refine.$post(arg({ json: input }))
+      ),
+  });
+}
+
+export function useLogPlannedMeal(date: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { insight_id: string; meal_index: number; logged_on: string }) =>
+      unwrap<FoodLog>(rpc.api.nutrition.plan['log-meal'].$post(arg({ json: input }))),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['food-logs', date] });
+      qc.invalidateQueries({ queryKey: ['food-logs', 'totals', date] });
+    },
   });
 }
 

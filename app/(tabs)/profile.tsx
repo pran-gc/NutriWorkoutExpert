@@ -1,5 +1,10 @@
 import { ACTIVITY_LABELS, GOAL_LABELS, todayISO } from '@shared';
-import type { ActivityLevel, GoalType, Sex } from '@shared';
+import type { ActivityLevel, CoachingProfile, GoalType, Sex } from '@shared';
+
+type DietaryStyle = NonNullable<CoachingProfile['dietary_style']>;
+type CookTimePref = NonNullable<CoachingProfile['cook_time_pref']>;
+const DIETARY_STYLES: DietaryStyle[] = ['omnivore', 'vegetarian', 'vegan', 'pescatarian', 'halal', 'kosher', 'other'];
+const COOK_TIME_PREFS: CookTimePref[] = ['quick', 'moderate', 'any'];
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, StyleSheet } from 'react-native';
@@ -53,6 +58,15 @@ export default function ProfileScreen() {
   const updateProfile = useUpdateProfile();
   const exportData = useExportData();
   const changePassword = useChangePassword();
+  const [coachMotivation, setCoachMotivation] = useState('');
+  const [coachDislikes, setCoachDislikes] = useState('');
+  const [coachInjuries, setCoachInjuries] = useState('');
+  const [coachTone, setCoachTone] = useState<'gentle' | 'balanced' | 'direct'>('balanced');
+  const [dietaryStyle, setDietaryStyle] = useState<DietaryStyle>('omnivore');
+  const [allergies, setAllergies] = useState('');
+  const [dislikedFoods, setDislikedFoods] = useState('');
+  const [mealsPerDay, setMealsPerDay] = useState(3);
+  const [cookTimePref, setCookTimePref] = useState<CookTimePref>('any');
   const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
@@ -71,7 +85,22 @@ export default function ProfileScreen() {
     setProteinTarget(profile.protein_target_g?.toString() ?? '');
     setCarbsTarget(profile.carbs_target_g?.toString() ?? '');
     setFatTarget(profile.fat_target_g?.toString() ?? '');
+    const coach = (profile.coaching_profile ?? {}) as CoachingProfile & {
+      motivation?: string; dislikes?: string[]; injuries?: string[]; coach_tone?: 'gentle' | 'balanced' | 'direct';
+    };
+    setCoachMotivation(coach.motivation ?? '');
+    setCoachDislikes((coach.dislikes ?? []).join(', '));
+    setCoachInjuries((coach.injuries ?? []).join(', '));
+    setCoachTone(coach.coach_tone ?? 'balanced');
+    setDietaryStyle(coach.dietary_style ?? 'omnivore');
+    setAllergies((coach.allergies ?? []).join(', '));
+    setDislikedFoods((coach.disliked_foods ?? []).join(', '));
+    setMealsPerDay(coach.meals_per_day ?? 3);
+    setCookTimePref(coach.cook_time_pref ?? 'any');
   }, [profile]);
+
+  const parseList = (raw: string) =>
+    raw.split(',').map((item) => item.trim()).filter(Boolean).slice(0, 10);
 
   const logWeight = async () => {
     const kg = parseFloat(newWeight);
@@ -99,6 +128,17 @@ export default function ProfileScreen() {
         target_weight_kg: parseFloat(targetWeight) || null,
         water_target_ml: parseInt(waterTarget, 10) || 2000,
         targets_locked: targetsLocked,
+        coaching_profile: {
+          motivation: coachMotivation.trim() || null,
+          dislikes: parseList(coachDislikes),
+          injuries: parseList(coachInjuries),
+          coach_tone: coachTone,
+          dietary_style: dietaryStyle,
+          allergies: parseList(allergies),
+          disliked_foods: parseList(dislikedFoods),
+          meals_per_day: mealsPerDay,
+          cook_time_pref: cookTimePref,
+        },
         ...(targetsLocked
           ? {
               calorie_target: parseInt(calorieTarget, 10) || null,
@@ -145,6 +185,26 @@ export default function ProfileScreen() {
     } catch (e) {
       Alert.alert('Could not change password', e instanceof Error ? e.message : 'Please try again.');
     }
+  };
+
+  const coachMemoryText = ((profile?.coach_memory ?? {}) as { text?: string }).text ?? '';
+
+  const clearCoachMemory = () => {
+    Alert.alert('Clear coach memory?', 'Your coach will forget everything it has learned from working with you.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await updateProfile.mutateAsync({ coach_memory: null });
+            await refreshProfile();
+          } catch (e) {
+            Alert.alert('Could not clear memory', e instanceof Error ? e.message : 'Please try again.');
+          }
+        },
+      },
+    ]);
   };
 
   const signOut = () => {
@@ -300,6 +360,74 @@ export default function ProfileScreen() {
           <Text style={styles.redoText}>Redo setup</Text>
         </Pressable>
 
+        <SectionTitle>Your coach</SectionTitle>
+        <Card>
+          <Muted>This is everything your coach knows about you. Edit it anytime.</Muted>
+          <Input
+            placeholder="What's driving you? (e.g. feel confident hiking)"
+            value={coachMotivation}
+            onChangeText={setCoachMotivation}
+          />
+          <Input
+            placeholder="Dislikes, comma-separated (e.g. running, burpees)"
+            value={coachDislikes}
+            onChangeText={setCoachDislikes}
+          />
+          <Input
+            placeholder="Injuries/constraints, comma-separated"
+            value={coachInjuries}
+            onChangeText={setCoachInjuries}
+          />
+          <ChipRow>
+            {(['gentle', 'balanced', 'direct'] as const).map((tone) => (
+              <Chip key={tone} label={tone} active={coachTone === tone} onPress={() => setCoachTone(tone)} />
+            ))}
+          </ChipRow>
+
+          <Text style={styles.memoryHeading}>Nutrition preferences</Text>
+          <Muted>Used every time your nutritionist plans meals.</Muted>
+          <ChipRow>
+            {DIETARY_STYLES.map((style) => (
+              <Chip key={style} label={style} active={dietaryStyle === style} onPress={() => setDietaryStyle(style)} />
+            ))}
+          </ChipRow>
+          <Input
+            placeholder="Allergies, comma-separated (kept out of every plan)"
+            value={allergies}
+            onChangeText={setAllergies}
+          />
+          <Input
+            placeholder="Foods you dislike, comma-separated"
+            value={dislikedFoods}
+            onChangeText={setDislikedFoods}
+          />
+          <Muted>Meals per day</Muted>
+          <ChipRow>
+            {[2, 3, 4, 5].map((n) => (
+              <Chip key={n} label={`${n}`} active={mealsPerDay === n} onPress={() => setMealsPerDay(n)} />
+            ))}
+          </ChipRow>
+          <Muted>Cooking time</Muted>
+          <ChipRow>
+            {COOK_TIME_PREFS.map((pref) => (
+              <Chip key={pref} label={pref} active={cookTimePref === pref} onPress={() => setCookTimePref(pref)} />
+            ))}
+          </ChipRow>
+
+          {coachMemoryText ? (
+            <>
+              <Text style={styles.memoryHeading}>What your coach remembers</Text>
+              <Muted>{coachMemoryText}</Muted>
+              <Pressable onPress={clearCoachMemory} hitSlop={8}>
+                <Text style={styles.clearMemory}>Clear memory</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Muted>Your coach builds a memory as you log and review weeks together.</Muted>
+          )}
+          <Muted>Saved with "Save profile" below.</Muted>
+        </Card>
+
         <SectionTitle>Account</SectionTitle>
         <Card>
           <Pressable
@@ -436,6 +564,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     justifyContent: 'center',
   },
+  memoryHeading: { fontSize: 14, fontWeight: '600', marginTop: 4 },
+  clearMemory: { color: Brand.destructive, fontSize: 13 },
   signOutButton: {
     alignItems: 'center',
     paddingVertical: 12,

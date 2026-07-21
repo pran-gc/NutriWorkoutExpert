@@ -69,6 +69,13 @@ Status: ✅ exists · 🔜 M1 (NWE-113/114) · 🚧 arrives with its feature sto
 | 🚧 `GET/POST/PATCH/DELETE /recipes` | 202 | items nested; totals computed in shared logic |
 | 🚧 `GET /water?date=` · `POST /water` · `DELETE /water/last?date=` | 203 | totals + undo |
 
+### Nutrition (AI meal planner)
+| Method & path | Story | Notes |
+|---|---|---|
+| ✅ `POST /nutrition/plan` | 121 | nutritionist plans one day: `{date}` → `{plan, insight_id}`. Full context (targets + training-day awareness from routines/sessions + logged-food continuity + dietary/coaching profile/memory). Draft stored in `insights` (kind `nutrition`); 3/day quota |
+| ✅ `POST /nutrition/plan/refine` | 121 | chat-to-edit over a plan draft: `{insight_id, message}` → `{reply, updated_plan?}`; last-8-turn history, ≤20 turns/draft; cross-user 404 |
+| ✅ `POST /nutrition/plan/log-meal` | 121 | "I had this": `{insight_id, meal_index, logged_on}` inserts one `food_logs` row with the planned meal's macros |
+
 ### Workouts
 | Method & path | Story | Notes |
 |---|---|---|
@@ -78,6 +85,7 @@ Status: ✅ exists · 🔜 M1 (NWE-113/114) · 🚧 arrives with its feature sto
 | ✅ `GET /exercises?q=` · `POST /exercises` | 301 | global seed + user's custom |
 | ✅ `GET /exercises/:id/history` | 303 | best set + volume per session, for charts |
 | ✅ `GET/POST/PUT/DELETE /routines` | 302 | `GET /routines/:id/prefill` returns exercises + last session's numbers |
+| ✅ `POST /routines/generated/refine` | 120 | chat-to-edit over a program draft: `{insight_id, message}` → `{reply, updated_program?}`; ≤20 turns/draft |
 | ✅ `POST /routines/generate` | 509 | AI program from setup Q&A → strict JSON mapped to library IDs |
 | ✅ `POST /routines/generated/save` | 509 | writes generated days as normal editable routines |
 | ✅ `POST /routines/:id/adapt` | 510 | coach adjustment diff (user approves before apply) |

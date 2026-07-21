@@ -68,6 +68,10 @@ export const profileSchema = z.object({
   targets_locked: z.boolean(),
   water_target_ml: z.number().int(),
   notification_prefs: z.record(z.unknown()).optional(),
+  // jsonb columns — shapes owned by coachingProfileSchema / coachMemorySchema in
+  // contracts.ts; kept loose here so row parsing never rejects older rows.
+  coaching_profile: z.record(z.unknown()).optional(),
+  coach_memory: z.record(z.unknown()).optional(),
 });
 export type Profile = z.infer<typeof profileSchema>;
 

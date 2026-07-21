@@ -19,7 +19,8 @@ import {
 import { HttpError } from '../middleware/error.ts';
 import { zval } from '../middleware/validate.ts';
 import { WEEKLY_REVIEW_PROMPT_VERSION } from '../prompts/weekly-review.v1.ts';
-import { analyzePhysique, generateCouncilPlan, generateWeeklyReview } from '../services/gemini.ts';
+import { buildCoachContext, coachContextLines } from '../services/coachContext.ts';
+import { analyzePhysique, distillCoachMemory, generateCouncilPlan, generateWeeklyReview } from '../services/gemini.ts';
 import type { Env } from '../types.ts';
 
 type BuiltSummary = Awaited<ReturnType<typeof buildWeeklySummary>>;
@@ -125,7 +126,8 @@ async function saveWeeklyInsight(c: Context<Env>, summary: BuiltSummary) {
   if (existingErr) throw new HttpError('INTERNAL', 'Could not check existing review.');
   if (existing) return existing;
 
-  const generated = await generateWeeklyReview(summary);
+  const coachCtx = await buildCoachContext(db, user.id);
+  const generated = await generateWeeklyReview(summary, coachContextLines(coachCtx));
   const { data, error } = await db
     .from('insights')
     .insert({
@@ -140,6 +142,7 @@ async function saveWeeklyInsight(c: Context<Env>, summary: BuiltSummary) {
     .select()
     .single();
   if (error || !data) throw new HttpError('INTERNAL', 'Could not save weekly review.');
+  await refreshCoachMemory(c, summary, coachCtx);
   return data;
 }
 
@@ -147,7 +150,8 @@ async function saveCouncilInsight(c: Context<Env>, summary: BuiltSummary) {
   const user = c.get('user');
   const db = c.get('db');
   const detectorMessages = await buildCouncilDetectorMessages(c, summary);
-  const council = await generateCouncilPlan(summary, detectorMessages);
+  const coachCtx = await buildCoachContext(db, user.id);
+  const council = await generateCouncilPlan(summary, detectorMessages, coachContextLines(coachCtx));
   const content = [
     council.plan.headline,
     '',
@@ -176,7 +180,35 @@ async function saveCouncilInsight(c: Context<Env>, summary: BuiltSummary) {
     : db.from('insights').insert(row);
   const { data, error } = await query.select().single();
   if (error || !data) throw new HttpError('INTERNAL', 'Could not save council plan.');
+  await refreshCoachMemory(c, summary, coachCtx);
   return data;
+}
+
+// Rolling memory distillation (NWE-119) — best-effort after each weekly/council
+// run. If the model is unreachable the memory is left unchanged; a failure here
+// never breaks the insight generation itself.
+async function refreshCoachMemory(
+  c: Context<Env>,
+  summary: BuiltSummary,
+  coachCtx: Awaited<ReturnType<typeof buildCoachContext>>
+) {
+  try {
+    const user = c.get('user');
+    const db = c.get('db');
+    const distilled = await distillCoachMemory({
+      previousMemory: coachCtx.coachMemory,
+      summary,
+      recentDecisions: coachCtx.recentDecisions,
+      profileLines: coachContextLines({ ...coachCtx, coachMemory: '', recentDecisions: [] }),
+    });
+    if (!distilled) return;
+    await db
+      .from('profiles')
+      .update({ coach_memory: { text: distilled.text, updated_at: new Date().toISOString() } })
+      .eq('id', user.id);
+  } catch (e) {
+    console.error('[coach-memory] refresh failed:', e instanceof Error ? e.message : e);
+  }
 }
 
 export const insightsRoute = new Hono<Env>()

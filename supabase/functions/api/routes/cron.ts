@@ -27,8 +27,16 @@ function monday(date = new Date()): string {
 }
 
 export const cronRoute = new Hono<Env>().post('/weekly-review', async (c) => {
+  // This endpoint is NOT behind authMiddleware and runs under the service-role
+  // client over ALL users, so it MUST fail closed. Require CRON_SECRET to be
+  // configured AND to match — never skip the check when the env var is unset,
+  // or the route becomes an unauthenticated, service-role-privileged trigger.
   const secret = Deno.env.get('CRON_SECRET');
-  if (secret && c.req.header('x-cron-secret') !== secret) {
+  if (!secret) {
+    // Misconfiguration: refuse rather than run unauthenticated.
+    throw new HttpError('INTERNAL', 'Cron is not configured.');
+  }
+  if (c.req.header('x-cron-secret') !== secret) {
     throw new HttpError('FORBIDDEN', 'Invalid cron secret.');
   }
   const db = adminDb();

@@ -90,9 +90,16 @@ sets/reps; deleting a routine cascades template rows only. Past `workout_session
 is `on delete set null`, so history is never removed by template cleanup.
 
 ### 🚧 insights (NWE-502)
-`user_id`, `kind ('weekly'|'physique')`, `week_start date` (weekly only, unique per user+week),
-`content` (markdown), `model`, `created_at`. **Never stores images** — physique rows hold text
-feedback only.
+`user_id`, `kind` (`weekly`|`council`|`physique`|`training`|`nutrition`; migration `0005`
+adds `nutrition`), `week_start date` (weekly only, unique per user+week), `content` (markdown),
+`payload jsonb` (AI drafts: program days for `training`, meal plan + refine thread for
+`nutrition`), `model`, `prompt_version`, `created_at`. **Never stores images** — physique rows
+hold text feedback only.
+
+`profiles.coaching_profile` (jsonb) also carries the **dietary profile** (NWE-121): `dietary_style`
+(omnivore/vegetarian/vegan/pescatarian/halal/kosher/other), `allergies[]` (hard safety
+constraint — never violated by the nutritionist), `disliked_foods[]`, `meals_per_day`,
+`cook_time_pref`. Validated by `coachingProfileSchema` in `packages/shared`.
 
 ## What is deliberately NOT in the database
 

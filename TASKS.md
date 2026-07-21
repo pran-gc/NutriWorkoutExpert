@@ -601,7 +601,133 @@ The user always approves changes before targets or programs are modified.
 **Depends on:** NWE-501, 502, 404, 509, 510, 603 (cron).
 
 ### NWE-505 · Coach chat — `⏸ v1.1` · O
-Free-form chat with the council, grounded in user aggregates; quota-hungry, needs guardrails and the council live first. Depends on 511.
+Free-form chat with the council, grounded in user aggregates; quota-hungry, needs guardrails and the council live first. Depends on 511. *(NWE-120 ships the scoped, program-only version of this in v1.0; 505 remains the open-ended chat.)*
+
+---
+
+## Epic 5b — Coach awareness & interaction (added 2026-07-20, user decision)
+
+Goal: the coaches should *know* the user (stated intent + distilled memory + decision history)
+and the user should be able to *talk back* to a generated program instead of following blindly.
+Architecture decisions (locked in discussion 2026-07-20):
+- **No fine-tuning, no vector DB.** Awareness = per-request context injection; continuity = a
+  rolling **distilled memory** (≤1200 chars, hard-capped) rewritten weekly by one cheap call.
+- **Code decides when the coach speaks** (detectors, NWE-510); the LLM only writes the words.
+- **Chat is artifact-scoped, not open-ended** (quota discipline; open chat stays v1.1 = 505).
+- Everything the coach "knows" is **user-visible and clearable** (trust + privacy).
+
+### NWE-118 · Coaching profile (stated intent) — `[x]` · O
+> Done (2026-07-20): migration 0003; `coachingProfileSchema` (TDD'd); PATCH /me round-trip
+> (integration-tested); onboarding "Tell your coach" page; Profile "Your coach" editor; injected
+> via `coachContextLines` into program-gen/weekly/council/refine prompts (unit-tested rendering).
+> **Live-verified on prod:** dislikes=["lunges"] → generated program contained no lunges.
+**Goal:** capture what the user *wants* — not just what they log — and inject it into every AI call.
+**UI:** one new onboarding page ("Tell your coach", skippable): motivation free-text, dislikes,
+injuries/constraints, coach-tone chips (gentle · balanced · direct). Profile gains a "Your coach"
+section showing the same fields, editable, with the copy "This is everything your coach knows
+about you."
+**Acceptance criteria:**
+1. Migration `0003`: `coaching_profile jsonb not null default '{}'` on profiles. Shape owned by
+   `coachingProfileSchema` in `packages/shared` (motivation, target_event {name,date}, preferences[],
+   dislikes[], injuries[], coach_tone) — all optional, length-capped, TDD'd.
+2. `PATCH /me` accepts `coaching_profile` (validated); round-trip integration test.
+3. Onboarding page + Profile "Your coach" editor (component-tested: edit + save + rendered values).
+4. Injection: program generation, weekly review, and council prompts all receive the coaching
+   profile when present (dislikes are respected: e.g. "hates running" → no running; prompt-builder
+   unit test asserts fields appear).
+**Depends on:** NWE-104, 114.
+
+### NWE-119 · Coach memory + decision feedback (continuity) — `[x]` · O
+**Goal:** the coach remembers what worked, what the user rejected, and how the story is going.
+**Acceptance criteria:**
+1. Migration `0004`: `coach_memory jsonb not null default '{}'` on profiles (`{text, updated_at}`,
+   Zod-owned, text hard-capped ≤1200 chars).
+2. `buildCoachContext(db, userId)` service: `{coachingProfile, coachMemory, recentDecisions}` where
+   recentDecisions = the last ~6 applied/dismissed proposals from `insights` (the behavioral
+   feedback loop — "user dismissed cardio twice"). One injection point used by every coach route.
+3. **Memory distillation:** after each weekly/council generation, one Gemini call
+   (`prompts/coach-memory.v1.ts`, mock-hooked like all others) rewrites the memory from
+   {previous memory + weekly summary + recent decisions}; result capped and stored. If Gemini is
+   unreachable, memory is left unchanged (never a fake memory). Integration test: two council runs
+   → memory updated; mocked response respected.
+4. Profile "Your coach" section shows the memory text ("What your coach remembers") + **Clear
+   memory** (sets `{}`); component + integration tested.
+5. Prompts (council, weekly review, program gen, refine) include memory + recentDecisions when present.
+**Depends on:** NWE-118, 511.
+
+### NWE-120 · Program refinement chat (chat-to-edit) — `[x]` · O
+> Done (2026-07-20): two-channel `refineProgramResponseSchema`; `/routines/generate` returns
+> `insight_id`; `/routines/generated/refine` with history window (last 8 turns), thread persisted
+> in the draft insight payload, ≤20 turns/draft, cross-user 404,
+> UPSTREAM_ERROR when Gemini is down (no fake replies); ProgramChat UI (bubbles, thinking state,
+> revision card → Apply replaces preview only; save via normal flow). Component + integration
+> tested. **Live-verified on prod:** question → reply-only; "30 min max, 3 exercises/day" →
+> reply + revised program (5→2-3 exercises/day).
+**Goal:** discuss a generated program with the coach and iterate — never follow blindly.
+**UI:** under the generated-program preview (Workouts tab), a chat panel: message list (user right,
+coach left), input + Send. When the coach proposes a revision, a card renders **"Apply this
+revision"** which replaces the preview draft (user then saves via the normal 509 flow). Loading
+state while the coach thinks; friendly "coach is busy" error state.
+**Acceptance criteria:**
+1. **Two-channel structured output:** `refineProgramResponseSchema` in shared =
+   `{reply: string, updated_program?: GeneratedProgram|null}` — prose answer always; revised
+   program only when the user asked for a change. TDD'd.
+2. `POST /routines/generate` now also returns `insight_id` (the stored draft row);
+   `POST /routines/generated/refine` takes `{insight_id, message}`, loads the draft (RLS),
+   sends {current program + last 8 turns + coach context (118/119)} to Gemini
+   (`prompts/program-refine.v1.ts`, system-instructed, mock-hooked), appends both turns to the
+   draft's `payload.messages`, persists `payload.draft_program` when revised, returns
+   `{reply, updated_program}`. Gemini unreachable → clean `UPSTREAM_ERROR` (no fake replies).
+3. **Quota discipline:** ≤20 turns per draft (RATE_LIMITED beyond). The 3 drafts/day guard is
+   temporarily disabled during product testing so program generation can be exercised freely.
+4. Applying a revision only changes the local draft; saving still goes through the normal
+   NWE-302/509 save endpoint — nothing auto-applies (locked decision upheld).
+5. Component tests: send → reply renders; revision card → Apply replaces preview; busy/error state.
+   Integration test: full refine round-trip with mocked Gemini (reply-only AND with-revision cases).
+**Depends on:** NWE-509, 118; better with 119.
+
+### NWE-121 · AI meal planner (nutritionist) — `[x]` · O
+**Goal:** the nutrition counterpart to the workout generator — a nutritionist-role AI plans a day
+of meals to hit the user's macro targets, aware of their training, goals, body stats, and dietary
+needs; the user refines it in chat, saves recipes, and logs "I had this" straight into the food log.
+**UI:** Food tab gets a "✨ Plan my meals" card (next to search). A day picker (Mon…Sun; today
+default) — pick a day, generate. Result: N meal cards (breakfast/lunch/dinner/snacks per the
+user's meals-per-day pref) each with name, per-meal macros, and an expandable recipe (ingredients +
+steps). A totals row vs. the day's targets. Actions per plan: **Review changes** (opens a bottom
+sheet listing proposed changes → Approve applies to the plan / close-and-keep-chatting), a chat
+input to talk to the nutritionist, and per meal: **Save recipe** (→ recipes, NWE-202) and
+**I had this** (→ logs that meal's macros to the food log for the selected day).
+**Architecture:** one orchestrated pipeline, nutritionist role prompt (same discipline as 509/120).
+Full context: body stats + goal + **computed/locked targets (404)** + **training schedule from
+routines/sessions** (periodize: more carbs on training days) + logged-food continuity + coaching
+profile/memory (118/119) + the new dietary profile. Day-plan first (regenerate per day); no 7-day
+mega-call.
+**Acceptance criteria:**
+1. Migration `0005`: extend `insights_kind_check` to include `'nutrition'` (meal-plan drafts live
+   in `insights`, same as program drafts). Dietary fields added to `coachingProfileSchema`
+   (dietary_style, allergies[], disliked_foods[], meals_per_day, cook_time_pref) — **allergies are
+   a hard safety constraint, restated in the system prompt, never violated**; TDD'd.
+2. Shared `mealPlanSchema` (loose-but-safe: meals[{name, meal_type, macros, recipe{ingredients[],
+   steps[]}}], day_totals) + `refineMealPlanResponseSchema` (two-channel `{reply, updated_plan?}`),
+   TDD'd. Per-meal macro sums are a pure function (TDD'd).
+3. `POST /nutrition/plan` `{date}`: builds nutritionist context (targets + training-day awareness
+   from routines + logged foods + dietary/coaching profile), calls Gemini (versioned
+   `prompts/meal-plan.v1.ts`, mock-hooked, retry-once, deterministic fallback), stores the draft in
+   `insights` (kind='nutrition'), returns `{plan, insight_id}`. Per-day quota (3/day). Integration-
+   tested incl. allergy respected in a mocked plan.
+4. `POST /nutrition/plan/refine` `{insight_id, message}`: two-channel chat-to-edit over the plan
+   draft (last-8-turn history, ≤20 turns/draft), persists thread + revision; cross-user 404;
+   UPSTREAM_ERROR when Gemini down. Integration-tested (reply-only + revision).
+5. `POST /nutrition/plan/log-meal` `{insight_id, meal_index, logged_on}`: inserts ONE food_log
+   (meal name, its macros, source='ai_photo'? no — new provenance handled as manual-style) for the
+   day; saving a recipe reuses the NWE-202 recipe create. Integration-tested (log lands in totals).
+6. App: dietary setup page (onboarding + Profile "Your coach"/nutrition), Food-tab planner entry,
+   meal-plan view with recipe expanders + totals-vs-target, **Review-changes bottom sheet** (approve/
+   close), refinement chat, Save recipe, I-had-this. Component-tested (plan renders; refine reply vs
+   revision; log-meal calls the mutation; bottom-sheet approve replaces plan).
+7. Copy body-neutral, "general wellness, not medical advice" rail; all AIs already receive body
+   stats/goal/targets via context — verify the nutritionist prompt includes them (unit test).
+**Depends on:** NWE-118/119 (context), 404 (targets), 501 (summary), 202 (recipes), 114.
 
 ---
 
@@ -740,6 +866,13 @@ NWE-505 (coach chat) once the council is live and quota behavior under real usag
 ## Discovered work
 
 *(agents: append findings here instead of expanding story scope)*
+
+- 2026-07-20 (NWE-121): **4 pre-existing "coach council" integration tests fail** in
+  `epic5-6.integration.test.ts` (`coaches: council, generated program save…`, and the three
+  `coach council:` tests at ~L225/294/329/404) — confirmed failing on a clean tree (stashed the
+  NWE-121 additions and they still fail), so unrelated to the meal planner. Failure is an
+  `AssertionError: Values are not equal` in the council flow. Needs its own debugging pass;
+  NWE-121's own nutrition integration test + all shared/app tests pass.
 
 - NWE-305 robustness: workout PATCH now snapshots/restores sets on replacement insert failure, but this is still best-effort outside a database transaction. A future migration should move session update + delete/insert sets into a single Postgres RPC/plpgsql transaction so even restore failures cannot lose sets.
 

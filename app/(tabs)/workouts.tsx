@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
 
 import { Text, View } from '@/components/Themed';
+import { ProgramChat } from '@/components/workouts/ProgramChat';
 import { Button, Card, Chip, ChipRow, EmptyState, Input, Muted, SectionTitle } from '@/components/ui';
 import { Brand } from '@/constants/Colors';
 import {
@@ -74,6 +75,7 @@ export default function WorkoutsScreen() {
   const [programEquipment, setProgramEquipment] = useState('gym, dumbbells');
   const [programConstraints, setProgramConstraints] = useState('');
   const [generatedProgram, setGeneratedProgram] = useState<GeneratedProgram | null>(null);
+  const [programInsightId, setProgramInsightId] = useState<string | null>(null);
   const [routineDiff, setRoutineDiff] = useState<RoutineDiff | null>(null);
 
   const workoutsQuery = useWorkouts({ from: rangeStart(), to: todayISO() });
@@ -212,14 +214,15 @@ export default function WorkoutsScreen() {
 
   const generateAiProgram = async () => {
     try {
-      const program = await generateProgram.mutateAsync({
+      const res = await generateProgram.mutateAsync({
         goal: programGoal,
         experience: programExperience,
         days_per_week: Math.max(1, Math.min(7, parseInt(programDays, 10) || 3)),
         equipment: programEquipment.split(',').map((item) => item.trim()).filter(Boolean),
         constraints: programConstraints.trim() || undefined,
       });
-      setGeneratedProgram(program);
+      setGeneratedProgram(res.program);
+      setProgramInsightId(res.insight_id);
     } catch (e) {
       Alert.alert('Could not generate program', e instanceof Error ? e.message : 'Please try again.');
     }
@@ -230,6 +233,7 @@ export default function WorkoutsScreen() {
     try {
       await saveGeneratedProgram.mutateAsync({ program: generatedProgram });
       setGeneratedProgram(null);
+      setProgramInsightId(null);
       setShowProgramGen(false);
       Alert.alert('Program saved', 'Your generated days are now editable routines.');
     } catch (e) {
@@ -335,6 +339,9 @@ export default function WorkoutsScreen() {
                       ))}
                     </Card>
                   ))}
+                  {programInsightId && (
+                    <ProgramChat insightId={programInsightId} onApplyRevision={setGeneratedProgram} />
+                  )}
                   <Button title="Save program" onPress={saveAiProgram} loading={saveGeneratedProgram.isPending} />
                 </View>
               )}

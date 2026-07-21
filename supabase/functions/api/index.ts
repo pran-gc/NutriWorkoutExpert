@@ -20,6 +20,7 @@ import { insightsRoute } from './routes/insights.ts';
 import { meRoute } from './routes/me.ts';
 import { notificationsRoute } from './routes/notifications.ts';
 import { recipesRoute } from './routes/recipes.ts';
+import { nutritionRoute } from './routes/nutrition.ts';
 import { routinesRoute } from './routes/routines.ts';
 import { weightsRoute } from './routes/weights.ts';
 import { workoutsRoute } from './routes/workouts.ts';
@@ -51,6 +52,7 @@ app.use('/exercises/*', authMiddleware);
 app.use('/exercises', authMiddleware);
 app.use('/routines/*', authMiddleware);
 app.use('/routines', authMiddleware);
+app.use('/nutrition/*', authMiddleware);
 app.use('/analytics/*', authMiddleware);
 app.use('/insights/*', authMiddleware);
 app.use('/insights', authMiddleware);
@@ -72,6 +74,7 @@ const routes = app
   .route('/workouts', workoutsRoute)
   .route('/exercises', exercisesRoute)
   .route('/routines', routinesRoute)
+  .route('/nutrition', nutritionRoute)
   .route('/analytics', analyticsRoute)
   .route('/insights', insightsRoute)
   .route('/', gamificationRoute)

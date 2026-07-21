@@ -44,6 +44,8 @@ export const meRoute = new Hono<Env>()
     // Recompute targets from body stats + latest weight — UNLESS the user locked
     // their own numbers (NWE-404). Locked profiles keep their targets verbatim.
     const update: Record<string, unknown> = { ...patch };
+    // coach_memory: null means "clear" — the column is non-null jsonb (NWE-119).
+    if (patch.coach_memory === null) update.coach_memory = {};
     if (!merged.targets_locked) {
       const { data: latest } = await db
         .from('weight_logs')

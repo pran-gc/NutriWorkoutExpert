@@ -13,7 +13,14 @@ import { supabase } from '@/lib/supabase';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import type { AppType } from '../supabase/functions/api/index.ts';
 
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321';
+// Only fall back to local Docker in dev builds. In a release build the env var
+// MUST be set (it's baked in at build time via .env.production / EAS env); if it's
+// missing we surface it loudly rather than silently pointing at a dead localhost.
+const SUPABASE_URL =
+  process.env.EXPO_PUBLIC_SUPABASE_URL ?? (__DEV__ ? 'http://127.0.0.1:54321' : '');
+if (!SUPABASE_URL && !__DEV__) {
+  console.error('EXPO_PUBLIC_SUPABASE_URL is not set in this build — the app cannot reach the API.');
+}
 
 // Supabase serves the function at /functions/v1/api; the Hono app's basePath is '/api'.
 const API_BASE = `${SUPABASE_URL}/functions/v1`;
