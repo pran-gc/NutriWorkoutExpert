@@ -7,9 +7,10 @@ const DIETARY_STYLES: DietaryStyle[] = ['omnivore', 'vegetarian', 'vegan', 'pesc
 const COOK_TIME_PREFS: CookTimePref[] = ['quick', 'moderate', 'any'];
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, StyleSheet } from 'react-native';
+import { Alert, Pressable, ScrollView, Share, StyleSheet } from 'react-native';
 
 import { useSession } from '@/components/SessionProvider';
+import { KeyboardSafeView } from '@/components/KeyboardSafeView';
 import { Text, View } from '@/components/Themed';
 import {
   Button,
@@ -215,9 +216,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardSafeView>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <SectionTitle>Today's weight</SectionTitle>
         <Card>
@@ -428,6 +427,13 @@ export default function ProfileScreen() {
           <Muted>Saved with "Save profile" below.</Muted>
         </Card>
 
+        <Card>
+          <Text style={styles.memoryHeading}>AI conversation privacy</Text>
+          <Muted>
+            AI Hub conversations are processed and briefly retained by Google to provide responses. Photos are never sent to the Hub; progress-photo analysis remains a separate, opt-in flow.
+          </Muted>
+        </Card>
+
         <SectionTitle>Account</SectionTitle>
         <Card>
           <Pressable
@@ -499,7 +505,7 @@ export default function ProfileScreen() {
           <Text style={styles.signOutText}>Sign out</Text>
         </Pressable>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardSafeView>
   );
 }
 

@@ -100,6 +100,7 @@ export const foodLogSchema = z.object({
   source: foodSourceSchema,
   source_id: z.string().nullable(),
   photo_path: z.string().nullable().optional(), // device-local filename (NWE-204)
+  ingredients: z.array(z.record(z.unknown())).nullable().optional(),
   logged_on: isoDateSchema,
 });
 export type FoodLog = z.infer<typeof foodLogSchema>;

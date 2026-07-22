@@ -1,6 +1,6 @@
 import * as Linking from 'expo-linking';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet } from 'react-native';
+import { Alert, Pressable, StyleSheet } from 'react-native';
 
 import { Text, View } from '@/components/Themed';
 import { Button, Input } from '@/components/ui';
@@ -63,10 +63,7 @@ export default function SignInScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={styles.container}>
+    <View style={styles.container}>
         <Text style={styles.logo}>🥗💪</Text>
         <Text style={styles.title}>NutriWorkoutExpert</Text>
         <Text style={styles.subtitle}>
@@ -118,8 +115,7 @@ export default function SignInScreen() {
               : 'Already have an account? Sign in'}
           </Text>
         </Pressable>
-      </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

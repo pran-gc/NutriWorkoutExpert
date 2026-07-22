@@ -11,6 +11,7 @@ import {
 } from '../../_shared/index.ts';
 import { HttpError } from '../middleware/error.ts';
 import { zval } from '../middleware/validate.ts';
+import { createRecipe } from '../services/recipes.ts';
 import type { Env } from '../types.ts';
 
 export const recipesRoute = new Hono<Env>()
@@ -28,23 +29,7 @@ export const recipesRoute = new Hono<Env>()
   .post('/', zval('json', upsertRecipeSchema), async (c) => {
     const user = c.get('user');
     const db = c.get('db');
-    const { name, servings, items } = c.req.valid('json');
-
-    const { data: recipe, error } = await db
-      .from('recipes')
-      .insert({ user_id: user.id, name, servings })
-      .select()
-      .single();
-    if (error || !recipe) throw new HttpError('INTERNAL', 'Could not create recipe.');
-
-    const { error: itemsErr } = await db.from('recipe_items').insert(
-      items.map((it, i) => ({ ...it, recipe_id: recipe.id, user_id: user.id, position: i }))
-    );
-    if (itemsErr) {
-      await db.from('recipes').delete().eq('id', recipe.id); // no orphan recipe
-      throw new HttpError('INTERNAL', 'Could not save recipe items.');
-    }
-    return c.json(ok(recipe));
+    return c.json(ok(await createRecipe(db, user.id, c.req.valid('json'))));
   })
   .put('/:id', zval('json', upsertRecipeSchema), async (c) => {
     const user = c.get('user');

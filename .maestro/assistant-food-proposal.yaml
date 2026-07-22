@@ -1,0 +1,15 @@
+# NWE-124 S2. Run against the local API with GEMINI_MOCK_INTERACTION_SEQUENCE
+# scripted to resolve macros then call propose_food_logs.
+appId: com.prangc.nutriworkoutexpert
+---
+- launchApp
+- assertVisible: 'Today'
+- tapOn: 'Open AI assistant'
+- tapOn: 'Message the AI assistant'
+- inputText: 'I ate 150g rice, 120g chicken and 100g vegetables for lunch'
+- tapOn: 'Send message'
+- assertVisible: 'Review proposal'
+- tapOn: 'Review proposal:.*'
+- assertVisible: 'Approve'
+- tapOn: 'Approve'
+- assertVisible: 'Added to your food log'

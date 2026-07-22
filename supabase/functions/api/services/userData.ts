@@ -18,6 +18,8 @@ export const USER_TABLES = [
   'routines',
   'routine_exercises',
   'insights',
+  'assistant_threads',
+  'assistant_messages',
   'earned_badges',
   'push_tokens',
 ] as const;

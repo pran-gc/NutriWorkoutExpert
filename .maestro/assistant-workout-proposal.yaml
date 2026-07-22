@@ -1,0 +1,30 @@
+# NWE-131 critical path. Run against a local API with a configured Gemini model.
+appId: com.prangc.nutriworkoutexpert
+---
+- launchApp
+- assertVisible: 'Today'
+- tapOn: 'Open AI assistant'
+- tapOn:
+    point: '45%,91%'
+- inputText: 'Log the workout I completed today, July 22 2026: Bench Press, 3 sets of 8 reps at 60 kg.'
+- tapOn: 'Send message'
+- extendedWaitUntil:
+    visible:
+      id: 'assistant-proposal-card'
+    timeout: 180000
+- tapOn:
+    id: 'assistant-proposal-card'
+- tapOn:
+    point: '20%,83%'
+- eraseText: 1
+- inputText: '10'
+- tapOn:
+    point: '50%,66%'
+- extendedWaitUntil:
+    visible:
+      id: 'assistant-proposal-card'
+    timeout: 30000
+- tapOn: 'Close assistant'
+- tapOn: 'Workouts tab'
+- tapOn: 'History'
+- assertVisible: '.*Completed Bench Press Workout.*'

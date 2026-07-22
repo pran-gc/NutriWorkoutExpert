@@ -6,6 +6,11 @@
 - `ui.tsx` — design primitives: `Card`, `ProgressBar` (value/max/color), `SectionTitle`.
   Add new shared primitives here (e.g. Chip, Button, Banner — NWE-101 extracts the ones
   currently duplicated across screens) instead of restyling per screen.
+- `AppScreen.tsx` — safe-area and keyboard-avoidance boundary for root screens. Root navigation
+  applies it to route screens; use `modal` only for standalone/native modal roots and never nest
+  a second `KeyboardAvoidingView`.
+- `KeyboardSafeView.tsx` — the shared cross-platform keyboard boundary (`padding` on iOS,
+  `height` on Android). Tab form screens use this because their navigator is nested.
 - `SessionProvider.tsx` — Supabase **auth** session + profile context. `useSession()` returns
   `{ session, profile, loading, refreshProfile }`. This is the only place `supabase.auth`
   state is subscribed. Do not add data-fetching here — data belongs to TanStack Query hooks.

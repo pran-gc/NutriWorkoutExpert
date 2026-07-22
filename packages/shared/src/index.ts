@@ -21,3 +21,5 @@ export * from './insights.ts';
 export * from './gamification.ts';
 export * from './notifications.ts';
 export * from './trainingDetectors.ts';
+export * from './assistant.ts';
+export * from './proposalNutrition.ts';

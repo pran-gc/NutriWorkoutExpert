@@ -38,7 +38,10 @@ const mockAsyncStorage = {
 
 jest.mock('@react-native-async-storage/async-storage', () => mockAsyncStorage);
 
-jest.mock('@gorhom/bottom-sheet', () => require('@gorhom/bottom-sheet/mock'));
+jest.mock('@gorhom/bottom-sheet', () => ({
+  __esModule: true,
+  ...require('@gorhom/bottom-sheet/mock'),
+}));
 
 jest.mock('react-native-safe-area-context', () => {
   const React = require('react');

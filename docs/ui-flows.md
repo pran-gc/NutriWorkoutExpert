@@ -153,6 +153,32 @@ attribution — goal coach (target diffs), nutrition coach (diet proposals), tra
 Between weeklies, drop detectors (logging lapse, weight stall, volume drop) surface short
 encouraging check-in notes here.
 
+## AI Hub (NWE-123/124/128–132)
+
+A safe-area-aware sparkles FAB floats above the tab bar on every tab. Tap opens the full-screen
+Hub; long-press opens recent conversations. The first-run state offers workout, nutrition, and
+focus prompts plus the Google retention/photo boundary disclosure. During a turn, a real progress
+strip follows thought/tool events and streamed markdown appears incrementally. Assistant bubbles
+with tool calls expose a collapsed “What I looked at” trace; failed turns are muted and retryable.
+
+Proposal tool calls render owned inline cards for program revisions, meal plans, food logs,
+workout logs, recipes, or target changes as part of the same chat turn, including a newly-created
+thread. The assistant asks one direct question when required data is missing; once a card exists,
+its bubble is only a short natural acknowledgement and never narrates app mechanics, permissions,
+review, or approval. Tapping a card opens a safe-area-aware, keyboard-aware, swipe-dismissable
+review sheet in read-only mode. A 44pt Edit action in the top-right progressively reveals the
+existing editors; closing the sheet discards local edits. Rich food/recipe reviews show concise
+macro and ingredient summaries, while edit mode provides ingredient grams, provenance,
+delete/swap/add controls, meal/date/servings, and collapsed micronutrients. Workout reviews group
+sets by exercise under explicit Set/Reps/kg (or Set/Minutes/km) headers. Exercise-directory
+matching is invisible best-effort server work and never blocks logging; unmatched free-text names
+remain valid. Quantity, deletion, servings, meal/date, exercise-name, and set edits stay local;
+only add/swap ingredient performs one resolver call. Log/Save/Apply is the short primary action and
+submits exactly the reviewed snapshot; food sheets also offer an independent “Save as recipe”.
+Superseded cards collapse to “Updated below” and cannot be approved. Allergies, invalid totals,
+empty ingredients and target locks block the action with an inline explanation. Conversations have
+explicit empty/loading/error states and can be resumed from the recent-thread sheet.
+
 ## Profile
 
 Sections top-to-bottom: today's weight quick-log (upsert per day) → about you (name, sex,

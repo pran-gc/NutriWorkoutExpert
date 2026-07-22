@@ -36,7 +36,7 @@ today's logs and training context → proposes a meal. **Or** "I ate chicken, ri
 | Scope | **Both scenarios in one epic** | They share one engine, registry and approval UI |
 | Loop location | **Server-side in Hono**, streamed to app | Secrets stay server-side; app stays thin |
 | API | **Gemini Interactions API** (GA Jun 2026) | `generateContent` is legacy; Interactions is the agentic path |
-| Model | **Gemini 3.x** (`gemini-3.6-flash` class) | Native thinking measurably improves function calling |
+| Model | **Gemini 3.x** (`gemini-3.5-flash`) | Stable Interactions model; native thinking improves function calling |
 | Tools | **MCP-shaped registry, executed in-process** | Cheaper, faster, more private *and* unlocks Gemini 3.x |
 | Migration | **Hub first, then migrate existing AI features** | Prove the pattern before touching working features |
 
@@ -168,6 +168,10 @@ Daily message quota (default 50, env-tunable). Total loop budget ≤ 45 s → `b
 fallback beyond. All copy body-neutral, no medical claims. Allergies remain absolute in any
 nutrition proposal.
 
+> Temporary implementation override (2026-07-22): at the user's direction, the default total-loop
+> timeout is disabled while real Gemini Interactions latency is evaluated. The intended long-term
+> design remains background execution with polling/resumption.
+
 ---
 
 ## 6. Technical requirements
@@ -287,7 +291,9 @@ disclosure, the Epic-5b reversal); `docs/api.md` gains the `/assistant/*` endpoi
 | **NWE-124** | Proposals + approval sheet (all four kinds) — completes S1 & S2 | 122, 123 |
 | **NWE-125** | Migrate program-refine + meal-plan-refine to Interactions | 122 |
 | **NWE-126** | Migrate one-shot generators (weekly, council, physique, program-gen, snap-to-log) | 125 |
-| **NWE-127** | *(follow-up)* Expose registry as Streamable-HTTP MCP server when Gemini 3 supports it | 124 |
+| **NWE-127** | *(⏸ blocked)* Expose registry as Streamable-HTTP MCP server when Gemini 3 supports it | 124 |
+
+Full story detail with acceptance criteria lives in **TASKS.md, Epic 5c** (the backlog of record).
 
 ---
 

@@ -6,8 +6,16 @@
 // excluded from the app's own compilation, but TS still resolves the type across
 // the boundary — a contract change on either side fails `tsc`. (NWE-113 AC#3.)
 import { hc } from 'hono/client';
+import { fetch as expoFetch } from 'expo/fetch';
 
-import { type ApiError, isErrorEnvelope } from '@shared';
+import {
+  type ApiError,
+  type AssistantChatInput,
+  type AssistantThread,
+  type AssistantSseEvent,
+  createAssistantSseParser,
+  isErrorEnvelope,
+} from '@shared';
 
 import { supabase } from '@/lib/supabase';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -90,4 +98,64 @@ export async function unwrap<T>(res: AwaitableResponse): Promise<T> {
     message: 'Unexpected response from server.',
     details: { status: resolved.status, ok: resolved.ok },
   });
+}
+
+async function authHeaders(extra?: HeadersInit): Promise<Headers> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers = new Headers(extra);
+  headers.set('Content-Type', 'application/json');
+  headers.set('Accept', 'text/event-stream');
+  if (session?.access_token) headers.set('Authorization', `Bearer ${session.access_token}`);
+  return headers;
+}
+
+/** Incremental SSE transport using Expo's native ReadableStream implementation. */
+export async function* streamSSE(path: string, init: RequestInit): AsyncGenerator<AssistantSseEvent> {
+  const requestId = `app-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const headers = await authHeaders(init.headers);
+  headers.set('X-Request-Id', requestId);
+  const response = await expoFetch(`${API_BASE}${path}`, {
+    ...init,
+    headers,
+  });
+  if (!response.ok) {
+    let body: unknown;
+    try { body = await response.json(); } catch { body = null; }
+    if (isRecord(body) && isErrorEnvelope(body as never)) {
+      console.error('[assistant] request failed', { requestId, path, status: response.status, code: (body as { error: ApiError }).error.code, message: (body as { error: ApiError }).error.message });
+      throw new ApiClientError((body as { error: ApiError }).error);
+    }
+    console.error('[assistant] unexpected response', { requestId, path, status: response.status });
+    throw new ApiClientError({ code: 'INTERNAL', message: 'The assistant could not be reached.' });
+  }
+
+  const parser = createAssistantSseParser();
+  const reader = response.body?.getReader?.();
+  if (!reader) {
+    // Some web/native fetch implementations buffer the response. The same SSE
+    // payload remains usable, so assistant chat degrades to one final render.
+    const text = await response.text();
+    for (const event of parser.push(text)) yield event;
+    for (const event of parser.finish()) yield event;
+    return;
+  }
+
+  const decoder = new TextDecoder();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    for (const event of parser.push(decoder.decode(value, { stream: true }))) yield event;
+  }
+  const tail = decoder.decode();
+  if (tail) for (const event of parser.push(tail)) yield event;
+  for (const event of parser.finish()) yield event;
+}
+
+export function streamAssistantChat(input: AssistantChatInput): AsyncGenerator<AssistantSseEvent> {
+  return streamSSE('/api/assistant/chat', { method: 'POST', body: JSON.stringify(input) });
+}
+
+/** Load a completed assistant turn by its actual (possibly newly-created) thread id. */
+export function getAssistantThread(id: string): Promise<AssistantThread> {
+  return unwrap<AssistantThread>(rpc.api.assistant.threads[':id'].$get({ param: { id } } as never));
 }

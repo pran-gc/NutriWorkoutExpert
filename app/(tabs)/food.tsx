@@ -3,9 +3,10 @@ import type { AiMealCandidate, FoodLog, FoodSearchResult, MealType, ResolvedIngr
 import * as FileSystem from 'expo-file-system/legacy';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet } from 'react-native';
 
 import { DateBar } from '@/components/food/DateBar';
+import { KeyboardSafeView } from '@/components/KeyboardSafeView';
 import { EditEntryPanel } from '@/components/food/EditEntryPanel';
 import { FavoritesRecents, type PickedFood } from '@/components/food/FavoritesRecents';
 import { PhotoThumbnail } from '@/components/food/PhotoThumbnail';
@@ -274,9 +275,7 @@ export default function FoodScreen() {
   );
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardSafeView>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <DateBar date={date} onChange={setDate} />
         <View style={styles.topLinks}>
@@ -490,7 +489,7 @@ export default function FoodScreen() {
           <EmptyState text="Nothing logged today. Search above or add manually. Long-press an entry to delete it." />
         )}
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardSafeView>
   );
 }
 

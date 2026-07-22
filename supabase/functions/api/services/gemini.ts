@@ -22,17 +22,22 @@ import {
   type RefineMealPlanResponse,
   mealPlanSchema,
   mealPlanTotals,
+  proposalIngredientSchema,
   refineMealPlanResponseSchema,
 } from '../../_shared/index.ts';
 import { COACH_MEMORY_PROMPT_VERSION, coachMemoryPrompt } from '../prompts/coach-memory.v1.ts';
 import { COUNCIL_PROMPT_VERSION, councilPrompt } from '../prompts/council.v1.ts';
-import { PROGRAM_REFINE_PROMPT_VERSION, PROGRAM_REFINE_SYSTEM, programRefinePrompt, refineHistory } from '../prompts/program-refine.v1.ts';
+import { PROGRAM_REFINE_SYSTEM, programRefinePrompt } from '../prompts/program-refine.v1.ts';
 import { MEAL_PLAN_PROMPT_VERSION, MEAL_PLAN_SYSTEM, mealPlanPrompt, type MealPlanContext } from '../prompts/meal-plan.v1.ts';
-import { MEAL_PLAN_REFINE_PROMPT_VERSION, MEAL_PLAN_REFINE_SYSTEM, mealPlanRefineHistory, mealPlanRefinePrompt } from '../prompts/meal-plan-refine.v1.ts';
+import { MEAL_PLAN_REFINE_SYSTEM, mealPlanRefinePrompt } from '../prompts/meal-plan-refine.v1.ts';
 import { MEAL_PHOTO_PROMPT_VERSION, mealPhotoPrompt } from '../prompts/meal-photo.v1.ts';
 import { PHYSIQUE_COMPARE_PROMPT_VERSION, physiqueComparePrompt } from '../prompts/physique-compare.v1.ts';
 import { PROGRAM_GEN_PROMPT_VERSION, PROGRAM_GEN_SYSTEM, programGenPrompt, type ProgramContext } from '../prompts/program-gen.v1.ts';
 import { weeklyReviewPrompt } from '../prompts/weekly-review.v1.ts';
+import { structuredInteraction } from './agent/interactions.ts';
+
+const PROGRAM_REFINE_PROMPT_VERSION = 'program-refine.v2';
+const MEAL_PLAN_REFINE_PROMPT_VERSION = 'meal-plan-refine.v2';
 
 export interface GeneratedText {
   model: string;
@@ -83,82 +88,6 @@ function mockSequence<T>(envName: string, parse: (value: unknown) => T): T | nul
   return null;
 }
 
-interface GeminiOptions {
-  /** JSON schema hint appended to generationConfig for structured output. */
-  responseSchema?: Record<string, unknown>;
-  /** Prior turns for a feedback loop (agentic context). */
-  history?: { role: 'user' | 'model'; text: string }[];
-  systemInstruction?: string;
-  temperature?: number;
-  /** Cap thinking to keep latency down (2.5 models "think" and can exceed timeouts). */
-  thinkingBudget?: number;
-}
-
-async function geminiJson<T>(
-  prompt: string,
-  parse: (value: unknown) => T,
-  parts: Record<string, unknown>[] = [],
-  opts: GeminiOptions = {}
-): Promise<{ model: string; value: T } | null> {
-  const key = Deno.env.get('GEMINI_API_KEY');
-  const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash';
-  if (!key) {
-    console.warn('[gemini] no GEMINI_API_KEY set — using local fallback');
-    return null;
-  }
-
-  const contents = [
-    ...(opts.history ?? []).map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
-    { role: 'user' as const, parts: [{ text: prompt }, ...parts] },
-  ];
-  const generationConfig: Record<string, unknown> = {
-    responseMimeType: 'application/json',
-    temperature: opts.temperature ?? 0.6,
-    ...(opts.responseSchema ? { responseSchema: opts.responseSchema } : {}),
-    // Reduce/disable the model's thinking phase so real generations finish inside
-    // the timeout (2.5-flash otherwise takes 20s+ on multi-day programs).
-    thinkingConfig: { thinkingBudget: opts.thinkingBudget ?? 0 },
-  };
-  const body = JSON.stringify({
-    contents,
-    generationConfig,
-    ...(opts.systemInstruction ? { systemInstruction: { parts: [{ text: opts.systemInstruction }] } } : {}),
-  });
-
-  let lastError = '';
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 45_000); // generous; real gens take 15-25s
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
-        { method: 'POST', headers: { 'content-type': 'application/json' }, signal: controller.signal, body }
-      );
-      if (!response.ok) {
-        lastError = `HTTP ${response.status}: ${(await response.text()).slice(0, 200)}`;
-        // Retry transient server/rate errors; give up on 4xx client errors.
-        if (response.status >= 500 || response.status === 429) continue;
-        console.error(`[gemini] ${lastError}`);
-        return null;
-      }
-      const json = await response.json();
-      const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (typeof text !== 'string') {
-        lastError = `no text in response (finishReason: ${json?.candidates?.[0]?.finishReason})`;
-        continue;
-      }
-      return { model, value: parse(extractJson(text)) };
-    } catch (e) {
-      lastError = e instanceof Error ? e.message : String(e);
-      // parse/validation error or abort → retry once more, then give up
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-  console.error(`[gemini] all attempts failed, falling back. Last error: ${lastError}`);
-  return null;
-}
-
 export async function generateWeeklyReview(summary: WeeklySummary, contextLines: string[] = []): Promise<GeneratedText> {
   const sequence = mockSequence('GEMINI_MOCK_RESPONSE_SEQUENCE', validateWeeklyReview);
   if (sequence) return { model: 'mock-gemini', content: sequence };
@@ -166,7 +95,7 @@ export async function generateWeeklyReview(summary: WeeklySummary, contextLines:
   if (mock) {
     return { model: 'mock-gemini', content: validateWeeklyReview(JSON.parse(mock)) };
   }
-  const result = await geminiJson(weeklyReviewPrompt(summary, contextLines), validateWeeklyReview);
+  const result = await structuredInteraction({ input: weeklyReviewPrompt(summary, contextLines), parse: validateWeeklyReview, store: false });
   return result ? { model: result.model, content: result.value } : fallbackReview(summary);
 }
 
@@ -182,14 +111,14 @@ export async function analyzeMealPhoto(photoBase64: string): Promise<{ model: st
   if (mock) {
     return { model: 'mock-gemini', promptVersion: MEAL_PHOTO_PROMPT_VERSION, candidates: JSON.parse(mock).map((row: unknown) => aiMealCandidateSchema.parse(row)) };
   }
-  const result = await geminiJson(
-    mealPhotoPrompt(),
-    (value) => {
+  const result = await structuredInteraction({
+    input: [{ type: 'text', text: mealPhotoPrompt() }, { type: 'image', mime_type: 'image/jpeg', data: photoBase64 }],
+    parse: (value) => {
       if (!Array.isArray(value)) throw new Error('Meal photo response must be an array.');
       return value.map((row) => aiMealCandidateSchema.parse(row));
     },
-    [{ inlineData: { mimeType: 'image/jpeg', data: photoBase64 } }]
-  );
+    store: false,
+  });
   if (result) return { model: result.model, promptVersion: MEAL_PHOTO_PROMPT_VERSION, candidates: result.value };
   return { model: 'local-meal-fallback', promptVersion: MEAL_PHOTO_PROMPT_VERSION, candidates: [
     aiMealCandidateSchema.parse({
@@ -214,13 +143,24 @@ async function searchUsda(name: string) {
   const body = await res.json();
   const food = body.foods?.[0];
   if (!food) return null;
-  const nutrients = new Map((food.foodNutrients ?? []).map((n: { nutrientName: string; value: number }) => [n.nutrientName, Number(n.value)]));
+  const nutrients = new Map<string, number>((food.foodNutrients ?? []).map((n: { nutrientName: string; value: number }) => [n.nutrientName, Number(n.value)]));
+  const value = (...names: string[]) => {
+    const found = names.map((key) => nutrients.get(key)).find((item) => item != null && Number.isFinite(item));
+    return found ?? null;
+  };
   return {
-    calories: Number(nutrients.get('Energy') ?? nutrients.get('Energy (Atwater General Factors)') ?? 0),
-    protein_g: Number(nutrients.get('Protein') ?? 0),
-    carbs_g: Number(nutrients.get('Carbohydrate, by difference') ?? 0),
-    fat_g: Number(nutrients.get('Total lipid (fat)') ?? 0),
+    calories: value('Energy', 'Energy (Atwater General Factors)') ?? 0,
+    protein_g: value('Protein') ?? 0, carbs_g: value('Carbohydrate, by difference') ?? 0,
+    fat_g: value('Total lipid (fat)') ?? 0,
     source: 'usda' as const,
+    fdc_id: typeof food.fdcId === 'number' ? food.fdcId : null,
+    source_id: typeof food.fdcId === 'number' ? String(food.fdcId) : null,
+    micronutrients: {
+      fiber_g: value('Fiber, total dietary'), sugar_g: value('Sugars, total including NLEA', 'Sugars, Total'),
+      saturated_fat_g: value('Fatty acids, total saturated'), sodium_mg: value('Sodium, Na'),
+      potassium_mg: value('Potassium, K'), calcium_mg: value('Calcium, Ca'), iron_mg: value('Iron, Fe'),
+      vitamin_c_mg: value('Vitamin C, total ascorbic acid'),
+    },
   };
 }
 
@@ -230,7 +170,8 @@ async function searchOpenFoodFacts(name: string) {
   });
   if (!res.ok) return null;
   const body = await res.json();
-  const n = body.products?.[0]?.nutriments;
+  const product = body.products?.[0];
+  const n = product?.nutriments;
   if (!n) return null;
   return {
     calories: Number(n['energy-kcal_100g'] ?? 0),
@@ -238,7 +179,37 @@ async function searchOpenFoodFacts(name: string) {
     carbs_g: Number(n.carbohydrates_100g ?? 0),
     fat_g: Number(n.fat_100g ?? 0),
     source: 'openfoodfacts' as const,
+    source_id: typeof product.code === 'string' ? product.code : null,
+    fdc_id: null,
+    micronutrients: {
+      fiber_g: typeof n.fiber_100g === 'number' ? n.fiber_100g : null,
+      sugar_g: typeof n.sugars_100g === 'number' ? n.sugars_100g : null,
+      saturated_fat_g: typeof n['saturated-fat_100g'] === 'number' ? n['saturated-fat_100g'] : null,
+      sodium_mg: typeof n.sodium_100g === 'number' ? n.sodium_100g * 1000 : null,
+      potassium_mg: typeof n.potassium_100g === 'number' ? n.potassium_100g * 1000 : null,
+      calcium_mg: typeof n.calcium_100g === 'number' ? n.calcium_100g * 1000 : null,
+      iron_mg: typeof n.iron_100g === 'number' ? n.iron_100g * 1000 : null,
+      vitamin_c_mg: typeof n['vitamin-c_100g'] === 'number' ? n['vitamin-c_100g'] * 1000 : null,
+    },
   };
+}
+
+async function estimateIngredient(name: string, quantity_g: number) {
+  const mock = Deno.env.get('GEMINI_MOCK_NUTRIENT_RESPONSE');
+  if (mock) {
+    const values = JSON.parse(mock) as Record<string, unknown>;
+    const row = values[name] ?? values.default;
+    return proposalIngredientSchema.parse({ ...(row && typeof row === 'object' ? row as Record<string, unknown> : {}), name, quantity_g, source: 'estimated' });
+  }
+  if (!Deno.env.get('GEMINI_API_KEY')) return null;
+  const result = await structuredInteraction({
+    model: Deno.env.get('GEMINI_NUTRIENT_MODEL') || undefined,
+    input: `Estimate nutrition per 100 g for the ingredient "${name}". Return calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g and nullable micronutrients_per_100g fields. Use null when unknown.`,
+    systemInstruction: 'You estimate nutrition only when food databases have no match. Return conservative JSON numbers and null for unknown micronutrients.',
+    temperature: 0.2, store: false,
+    parse: (value) => proposalIngredientSchema.parse({ ...(value as Record<string, unknown>), name, quantity_g, source: 'estimated' }),
+  });
+  return result?.value ?? null;
 }
 
 export async function resolveIngredients(
@@ -248,14 +219,22 @@ export async function resolveIngredients(
   for (const ingredient of ingredients) {
     const q = ingredient.quantity_g / 100;
     const dbBase = await searchUsda(ingredient.name) ?? await searchOpenFoodFacts(ingredient.name);
+    const aiEstimate = dbBase ? null : await estimateIngredient(ingredient.name, ingredient.quantity_g);
     const lower = ingredient.name.toLowerCase();
     const fallback =
       lower.includes('rice')
-        ? { calories: 130, protein_g: 2.7, carbs_g: 28, fat_g: 0.3, source: 'ai_estimate' as const }
+        ? { calories: 130, protein_g: 2.7, carbs_g: 28, fat_g: 0.3 }
         : lower.includes('chicken') || lower.includes('protein')
-          ? { calories: 165, protein_g: 31, carbs_g: 0, fat_g: 3.6, source: 'ai_estimate' as const }
-          : { calories: 80, protein_g: 2, carbs_g: 12, fat_g: 2, source: 'ai_estimate' as const };
-    const base = dbBase ?? fallback;
+          ? { calories: 165, protein_g: 31, carbs_g: 0, fat_g: 3.6 }
+          : { calories: 80, protein_g: 2, carbs_g: 12, fat_g: 2 };
+    const base = dbBase ?? (aiEstimate ? {
+      calories: aiEstimate.calories_per_100g, protein_g: aiEstimate.protein_per_100g, carbs_g: aiEstimate.carbs_per_100g,
+      fat_g: aiEstimate.fat_per_100g, source: 'estimated' as const, source_id: aiEstimate.source_id ?? null,
+      fdc_id: null, micronutrients: aiEstimate.micronutrients_per_100g,
+    } : { ...fallback, source: 'estimated' as const, source_id: null, fdc_id: null, micronutrients: {
+      fiber_g: null, sugar_g: null, saturated_fat_g: null, sodium_mg: null, potassium_mg: null,
+      calcium_mg: null, iron_mg: null, vitamin_c_mg: null,
+    } });
     rows.push(resolvedIngredientSchema.parse({
       name: ingredient.name,
       quantity_g: ingredient.quantity_g,
@@ -263,8 +242,12 @@ export async function resolveIngredients(
       protein_g: Math.round(base.protein_g * q * 10) / 10,
       carbs_g: Math.round(base.carbs_g * q * 10) / 10,
       fat_g: Math.round(base.fat_g * q * 10) / 10,
-      estimated: base.source === 'ai_estimate',
+      estimated: base.source === 'estimated',
       source: base.source,
+      source_id: base.source_id, fdc_id: base.fdc_id,
+      calories_per_100g: base.calories, protein_per_100g: base.protein_g,
+      carbs_per_100g: base.carbs_g, fat_per_100g: base.fat_g,
+      micronutrients_per_100g: base.micronutrients,
     }));
   }
   return rows;
@@ -279,12 +262,10 @@ export async function generateWorkoutProgram(
   const mock = Deno.env.get('GEMINI_MOCK_PROGRAM_RESPONSE');
   if (mock) return generatedProgramSchema.parse(JSON.parse(mock));
 
-  const result = await geminiJson(
-    programGenPrompt(input, ctx),
-    (value) => generatedProgramSchema.parse(value),
-    [],
-    { systemInstruction: PROGRAM_GEN_SYSTEM, temperature: 0.7 }
-  );
+  const result = await structuredInteraction({
+    input: programGenPrompt(input, ctx), parse: (value) => generatedProgramSchema.parse(value),
+    systemInstruction: PROGRAM_GEN_SYSTEM, temperature: 0.7, store: false,
+  });
   if (result) return result.value;
 
   // Fallback ONLY when Gemini is unreachable — build a real split, not 3 repeated
@@ -351,10 +332,10 @@ export async function generateRoutineDiff(reason: string, context?: unknown): Pr
   if (sequence) return sequence;
   const mock = Deno.env.get('GEMINI_MOCK_ROUTINE_DIFF');
   if (mock) return routineDiffSchema.parse(JSON.parse(mock));
-  const result = await geminiJson(
-    `Return strict JSON routine diff. Reason: ${reason}\nContext: ${JSON.stringify(context ?? {})}`,
-    (value) => routineDiffSchema.parse(value)
-  );
+  const result = await structuredInteraction({
+    input: `Return strict JSON routine diff. Reason: ${reason}\nContext: ${JSON.stringify(context ?? {})}`,
+    parse: (value) => routineDiffSchema.parse(value), store: false,
+  });
   if (result) return result.value;
   return routineDiffSchema.parse({
     title: 'Training adjustment',
@@ -378,15 +359,15 @@ export async function analyzePhysique(photos: string[], summary: WeeklySummary, 
     const row = JSON.parse(mock) as { feedback: string; refused?: boolean };
     return { model: 'mock-gemini', promptVersion: PHYSIQUE_COMPARE_PROMPT_VERSION, feedback: row.feedback, refused: Boolean(row.refused) };
   }
-  const result = await geminiJson(
-    physiqueComparePrompt(summary, notes),
-    (value) => {
+  const result = await structuredInteraction({
+    input: [{ type: 'text', text: physiqueComparePrompt(summary, notes) }, ...photos.map((data) => ({ type: 'image', mime_type: 'image/jpeg', data }))],
+    parse: (value) => {
       const row = value as { feedback?: unknown; refused?: unknown };
       if (typeof row.feedback !== 'string') throw new Error('Physique response missing feedback.');
       return { feedback: row.feedback, refused: Boolean(row.refused) };
     },
-    photos.map((data) => ({ inlineData: { mimeType: 'image/jpeg', data } }))
-  );
+    store: false,
+  });
   if (result) return { model: result.model, promptVersion: PHYSIQUE_COMPARE_PROMPT_VERSION, ...result.value };
   return {
     model: 'local-physique-fallback',
@@ -401,7 +382,7 @@ export async function generateCouncilPlan(summary: WeeklySummary, detectorMessag
   if (sequence) return { model: 'mock-gemini', promptVersion: COUNCIL_PROMPT_VERSION, plan: sequence };
   const mock = Deno.env.get('GEMINI_MOCK_COUNCIL_RESPONSE');
   if (mock) return { model: 'mock-gemini', promptVersion: COUNCIL_PROMPT_VERSION, plan: councilPlanSchema.parse(JSON.parse(mock)) };
-  const result = await geminiJson(councilPrompt(summary, detectorMessages, contextLines), (value) => councilPlanSchema.parse(value));
+  const result = await structuredInteraction({ input: councilPrompt(summary, detectorMessages, contextLines), parse: (value) => councilPlanSchema.parse(value), store: false });
   if (result) return { model: result.model, promptVersion: COUNCIL_PROMPT_VERSION, plan: result.value };
   return {
     model: 'local-council-fallback',
@@ -437,7 +418,7 @@ export async function distillCoachMemory(input: {
   const mock = Deno.env.get('GEMINI_MOCK_MEMORY_RESPONSE');
   if (mock) return { text: parseMemory(JSON.parse(mock)).text, promptVersion: COACH_MEMORY_PROMPT_VERSION };
 
-  const result = await geminiJson(coachMemoryPrompt(input), parseMemory, [], { temperature: 0.3 });
+  const result = await structuredInteraction({ input: coachMemoryPrompt(input), parse: parseMemory, temperature: 0.3, store: false });
   if (!result) return null;
   return { text: result.value.text, promptVersion: COACH_MEMORY_PROMPT_VERSION };
 }
@@ -450,21 +431,23 @@ export async function refineProgram(input: {
   messages: CoachChatMessage[];
   userMessage: string;
   contextLines: string[];
-}): Promise<{ model: string; promptVersion: string; turn: RefineProgramResponse } | null> {
+  previousInteractionId?: string | null;
+}): Promise<{ model: string; promptVersion: string; turn: RefineProgramResponse; interactionId: string | null } | null> {
   const parseTurn = (value: unknown) => refineProgramResponseSchema.parse(value);
   const sequence = mockSequence('GEMINI_MOCK_REFINE_RESPONSE_SEQUENCE', parseTurn);
-  if (sequence) return { model: 'mock-gemini', promptVersion: PROGRAM_REFINE_PROMPT_VERSION, turn: sequence };
+  if (sequence) return { model: 'mock-gemini', promptVersion: PROGRAM_REFINE_PROMPT_VERSION, turn: sequence, interactionId: input.previousInteractionId ?? null };
   const mock = Deno.env.get('GEMINI_MOCK_REFINE_RESPONSE');
-  if (mock) return { model: 'mock-gemini', promptVersion: PROGRAM_REFINE_PROMPT_VERSION, turn: parseTurn(JSON.parse(mock)) };
+  if (mock) return { model: 'mock-gemini', promptVersion: PROGRAM_REFINE_PROMPT_VERSION, turn: parseTurn(JSON.parse(mock)), interactionId: input.previousInteractionId ?? null };
 
-  const result = await geminiJson(
-    programRefinePrompt({ program: input.program, contextLines: input.contextLines, userMessage: input.userMessage }),
-    parseTurn,
-    [],
-    { systemInstruction: PROGRAM_REFINE_SYSTEM, history: refineHistory(input.messages), temperature: 0.6 }
-  );
+  const legacyContext = Deno.env.get('ASSISTANT_INTERACTIONS_REFINE') === 'off'
+    ? `\nRecent conversation:\n${input.messages.slice(-8).map((message) => `${message.role}: ${message.text}`).join('\n')}` : '';
+  const result = await structuredInteraction({
+    input: programRefinePrompt({ program: input.program, contextLines: input.contextLines, userMessage: input.userMessage }) + legacyContext,
+    parse: parseTurn, systemInstruction: PROGRAM_REFINE_SYSTEM, temperature: 0.6, store: true,
+    previousInteractionId: Deno.env.get('ASSISTANT_INTERACTIONS_REFINE') === 'off' ? null : input.previousInteractionId,
+  });
   if (!result) return null;
-  return { model: result.model, promptVersion: PROGRAM_REFINE_PROMPT_VERSION, turn: result.value };
+  return { model: result.model, promptVersion: PROGRAM_REFINE_PROMPT_VERSION, turn: result.value, interactionId: result.interactionId };
 }
 
 // ── AI meal planner (NWE-121) ───────────────────────────────────────────────
@@ -495,7 +478,7 @@ export async function generateMealPlan(ctx: MealPlanContext): Promise<{ model: s
   const mock = Deno.env.get('GEMINI_MOCK_MEALPLAN_RESPONSE');
   if (mock) return { model: 'mock-gemini', promptVersion: MEAL_PLAN_PROMPT_VERSION, plan: mealPlanSchema.parse(JSON.parse(mock)) };
 
-  const result = await geminiJson(mealPlanPrompt(ctx), (v) => mealPlanSchema.parse(v), [], { systemInstruction: MEAL_PLAN_SYSTEM, temperature: 0.7 });
+  const result = await structuredInteraction({ input: mealPlanPrompt(ctx), parse: (v) => mealPlanSchema.parse(v), systemInstruction: MEAL_PLAN_SYSTEM, temperature: 0.7, store: false });
   if (result) return { model: result.model, promptVersion: MEAL_PLAN_PROMPT_VERSION, plan: result.value };
   return { model: 'local-mealplan-fallback', promptVersion: MEAL_PLAN_PROMPT_VERSION, plan: fallbackMealPlan(ctx) };
 }
@@ -505,19 +488,21 @@ export async function refineMealPlan(input: {
   messages: CoachChatMessage[];
   userMessage: string;
   contextLines: string[];
-}): Promise<{ model: string; promptVersion: string; turn: RefineMealPlanResponse } | null> {
+  previousInteractionId?: string | null;
+}): Promise<{ model: string; promptVersion: string; turn: RefineMealPlanResponse; interactionId: string | null } | null> {
   const parseTurn = (v: unknown) => refineMealPlanResponseSchema.parse(v);
   const sequence = mockSequence('GEMINI_MOCK_MEALPLAN_REFINE_SEQUENCE', parseTurn);
-  if (sequence) return { model: 'mock-gemini', promptVersion: MEAL_PLAN_REFINE_PROMPT_VERSION, turn: sequence };
+  if (sequence) return { model: 'mock-gemini', promptVersion: MEAL_PLAN_REFINE_PROMPT_VERSION, turn: sequence, interactionId: input.previousInteractionId ?? null };
   const mock = Deno.env.get('GEMINI_MOCK_MEALPLAN_REFINE');
-  if (mock) return { model: 'mock-gemini', promptVersion: MEAL_PLAN_REFINE_PROMPT_VERSION, turn: parseTurn(JSON.parse(mock)) };
+  if (mock) return { model: 'mock-gemini', promptVersion: MEAL_PLAN_REFINE_PROMPT_VERSION, turn: parseTurn(JSON.parse(mock)), interactionId: input.previousInteractionId ?? null };
 
-  const result = await geminiJson(
-    mealPlanRefinePrompt({ plan: input.plan, contextLines: input.contextLines, userMessage: input.userMessage }),
-    parseTurn,
-    [],
-    { systemInstruction: MEAL_PLAN_REFINE_SYSTEM, history: mealPlanRefineHistory(input.messages), temperature: 0.6 }
-  );
+  const legacyContext = Deno.env.get('ASSISTANT_INTERACTIONS_REFINE') === 'off'
+    ? `\nRecent conversation:\n${input.messages.slice(-8).map((message) => `${message.role}: ${message.text}`).join('\n')}` : '';
+  const result = await structuredInteraction({
+    input: mealPlanRefinePrompt({ plan: input.plan, contextLines: input.contextLines, userMessage: input.userMessage }) + legacyContext,
+    parse: parseTurn, systemInstruction: MEAL_PLAN_REFINE_SYSTEM, temperature: 0.6, store: true,
+    previousInteractionId: Deno.env.get('ASSISTANT_INTERACTIONS_REFINE') === 'off' ? null : input.previousInteractionId,
+  });
   if (!result) return null;
-  return { model: result.model, promptVersion: MEAL_PLAN_REFINE_PROMPT_VERSION, turn: result.value };
+  return { model: result.model, promptVersion: MEAL_PLAN_REFINE_PROMPT_VERSION, turn: result.value, interactionId: result.interactionId };
 }

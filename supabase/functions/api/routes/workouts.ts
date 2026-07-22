@@ -10,6 +10,7 @@ import {
 } from '../../_shared/index.ts';
 import { HttpError } from '../middleware/error.ts';
 import { zval } from '../middleware/validate.ts';
+import { createWorkoutSession } from '../services/workouts.ts';
 import type { Env } from '../types.ts';
 
 type DraftSet = {
@@ -63,33 +64,7 @@ export const workoutsRoute = new Hono<Env>()
   .post('/', zval('json', createWorkoutSessionSchema), async (c) => {
     const user = c.get('user');
     const db = c.get('db');
-    const { sets = [], ...session } = c.req.valid('json');
-    await assertSetShapes(db, user.id, sets);
-
-    const { data: created, error } = await db
-      .from('workout_sessions')
-      .insert({ ...session, user_id: user.id })
-      .select()
-      .single();
-    if (error || !created) throw new HttpError('INTERNAL', 'Could not save workout.');
-
-    if (sets.length > 0) {
-      const { error: setsError } = await db.from('workout_sets').insert(
-        sets.map((s) => ({ ...s, session_id: created.id, user_id: user.id }))
-      );
-      if (setsError) {
-        // No orphan session: roll back the header we just wrote.
-        await db.from('workout_sessions').delete().eq('id', created.id);
-        throw new HttpError('INTERNAL', 'Could not save workout sets.');
-      }
-    }
-    const { data } = await db
-      .from('workout_sessions')
-      .select('*, workout_sets(*)')
-      .eq('id', created.id)
-      .eq('user_id', user.id)
-      .single();
-    return c.json(ok(data ?? created));
+    return c.json(ok(await createWorkoutSession(db, user.id, c.req.valid('json'))));
   })
   .patch('/:id', zval('json', updateWorkoutSessionSchema), async (c) => {
     const user = c.get('user');

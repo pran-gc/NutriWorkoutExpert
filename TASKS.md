@@ -26,7 +26,9 @@ Status: `[x]` done · `[~]` drafted/partial — needs review · `[ ]` not starte
 - **Backend:** **Hono API running on Supabase Edge Functions** (TypeScript/Deno). The mobile app NEVER queries the database/PostgREST directly — all reads/writes go through the API. The Supabase JS client stays in the app **for auth only** (sign in/up, session, token refresh); every API request carries the user's JWT.
 - **Defense in depth:** inside the API, per-request Supabase clients are created with the caller's JWT so Postgres RLS stays enforced. The service-role key is used only where genuinely required, and never leaves the backend.
 - **Shared code:** `packages/shared/` holds Zod schemas, domain types and pure domain logic (nutrition math, aggregation shapes). Imported by both the app (Metro) and the API (Deno). API request/response contracts are defined here — change the contract, and both sides type-error.
-- **AI:** free-tier Gemini, called only from the backend. API keys live in Edge Function secrets.
+- **AI:** Gemini, called only from the backend. API keys live in Edge Function secrets. Existing
+  one-shot features receive aggregates/ephemeral photos; the approved agentic Hub may pull
+  capped, PII-free raw rows through RLS-scoped read tools. It can never write directly.
 - **Photos: on-device only** (expo-file-system in the app's private directory) — never stored server-side, and the app says so prominently ("your photos are never stored"). For opt-in AI analysis they are sent ephemerally through the API to Gemini and only the text result is kept. Cloud photo sync is a possible future story (Cloudflare R2 was evaluated: 10 GB free, zero egress — use it if this ever changes).
 - **Testing: full pyramid, TDD.** Domain/API logic is written test-first. Levels: unit (Vitest for shared + API logic; jest-expo + RN Testing Library for app), integration (API routes against a local Supabase stack via the Supabase CLI + Docker), E2E (**Maestro** flows on the iOS simulator — runs on the Mac). CI on GitHub Actions.
 - **Gamification guardrail:** badges/quests/streaks celebrate **real logged actions** (computed server-side from data, never self-reported); copy never guilts, shames, or manufactures FOMO; rest days respected.
@@ -52,7 +54,7 @@ generation, adaptive training, coach council), which are the USP vs. every compe
 in 1.0** (user decision 2026-07-06). The coaches work from day one — the generator needs only
 the setup Q&A, the council's first plan lands after week one — and get sharper with usage.
 
-**After v1.0:** coach chat (505 — quota-hungry, needs the council live first), barcode scan
+**After v1.0:** AI Hub follow-ups (123–127), barcode scan
 (207), rest timer (306), measurements (403), HealthKit/Health Connect (701/702), Play Store (804).
 
 | # | Theme | Stories |
@@ -66,9 +68,10 @@ the setup Q&A, the council's first plan lands after week one — and get sharper
 | M6 | Photos & snap-to-log | NWE-204, 508, 202, 507, 405 |
 | M7 | Notifications & gamification | NWE-607, 601, 603, 602, 605, 606, 604 |
 | M8 | AI coaches (USP) | NWE-509, 510, 511 |
-| M9 | Release — **v1.0 launch** | NWE-117, 801, 802, 803 |
-| v1.1 | — | NWE-505 (coach chat) |
-| Later | — | NWE-207, 306, 403, 701, 702, 804 |
+| M9 | Release — **v1.0 launch** | NWE-117, 801, 805, 802, 803 |
+| v1.1 | AI Hub | NWE-122, 123, 124, 125, 126 |
+| v1.1 | Rich, editable proposals | NWE-128, 129, 130, 131, 132 |
+| Later | — | NWE-127 (blocked: Gemini 3 remote MCP), 207, 306, 403, 701, 702, 804 |
 
 > M1 is the "latest architectures and patterns" epic. Nothing in M2+ starts until M1 is done —
 > every feature story assumes the API, shared package, and test harness exist.
@@ -731,6 +734,389 @@ mega-call.
 
 ---
 
+## Epic 5c — Agentic AI Hub
+
+> Approved design: [`docs/superpowers/specs/2026-07-21-ai-hub-design.md`](docs/superpowers/specs/2026-07-21-ai-hub-design.md).
+> This deliberately supersedes NWE-505 and reverses the old aggregate-only rule for this Hub;
+> reads remain capped, PII-free, and RLS-scoped, while model-initiated writes are impossible.
+
+### NWE-122 · AI Hub backend foundation — `[x]` · O
+> Implemented 2026-07-21: migration `0007_assistant.sql`; shared chat/tool/SSE contracts;
+> 11-tool read-only MCP-shaped registry; Gemini Interactions streaming loop with fragmented
+> argument assembly, parallel reads, continuation IDs, step/time caps and structured traces;
+> authenticated `/assistant/chat` SSE plus thread list/resume endpoints; daily quota; direct RLS,
+> persistence, stream, cap, and schema tests. NWE-123 owns the app screen; NWE-124 owns proposals.
+> **Temporary user-directed override (2026-07-22):** the default 45-second total-loop timeout is
+> disabled while real Interactions latency is evaluated; step, quota, row, and date caps remain.
+**Acceptance criteria:**
+1. `assistant_threads` and `assistant_messages` migration has RLS, indexes, lifecycle fields, and
+   `insights.kind='assistant'`; cross-user isolation is integration-tested for both tables.
+2. Read-only registry exposes the 11 approved tools with Zod args, MCP-shaped JSON Schema, ≤200-row
+   and ≤365-day caps, with no mutation/proposal dispatch path.
+3. Interactions loop uses streaming, re-sends interaction-scoped tools/system instructions,
+   continues via `previous_interaction_id`, aggregates split arguments, executes parallel reads,
+   skips unknown events, and enforces the 6-step/default 10-step-hard limits. The 45-second limit
+   is temporarily disabled by the explicit user override above.
+4. `POST /assistant/chat` streams `thought`, `function_call`, `text`, `done`, and `error`; auth,
+   request validation, friendly daily quota, message/tool-trace persistence, and thread resume work.
+   `GET /assistant/threads` and `GET /assistant/threads/:id` are RLS-scoped.
+5. Hub tools never expose emails, photos, other-user data, or server-side writes. Copy/prompt is
+   body-neutral and avoids medical claims. Docs and agent guidance reflect the approved reversal.
+
+**Follow-ups:** NWE-123 Hub/FAB UI · NWE-124 proposals/approval · NWE-125/126 Interactions migration · NWE-127 remote MCP.
+
+---
+
+### NWE-123 · Hub screen (FAB, streaming chat, threads, trace) — `[x]` · O
+**Goal:** give NWE-122's backend a face — one place to talk to the assistant, where the user *sees*
+it working rather than staring at a spinner.
+**UI:** a **magic FAB** (✨) floats above the tab bar on all five tabs, respecting safe-area insets;
+tap opens `app/assistant.tsx` (full screen), long-press opens the recent-threads list. The screen:
+message list (user right, assistant left, markdown via `MarkdownText`), a live **progress strip**
+while the assistant works — "Thinking…" then per-tool copy ("Looking at your workout trends…",
+"Checking today's meals…") driven by real `function_call` events, never faked. Under each assistant
+message, a collapsed **"What I looked at"** row expands to the tool trace (friendly tool name,
+argument preview, latency). Input + Send, disabled while streaming. Empty state suggests three
+starter prompts (one workout, one nutrition, one "what should I focus on?"). Quota-reached and
+"assistant is busy" states use friendly, non-guilting copy. Failed turns (`failed = true`) render
+as a muted "couldn't finish that one" bubble with a Retry affordance, never as normal advice.
+**Acceptance criteria:**
+1. **Streaming client:** `lib/api.ts` gains `streamSSE()` built on **`expo/fetch`** (verified to
+   expose a `ReadableStream` body + `getReader()`; `TextDecoderStream` available) — no new
+   dependency. It yields events parsed by the shared `parseAssistantSse`, tolerating split chunks
+   and unknown event types. If streaming is unavailable, fall back to a non-streamed request and
+   render the final message (degraded, never broken). Unit-tested against split/hostile chunks.
+2. **FAB** renders on all five tabs above the tab bar, safe-area aware, with an accessibility label;
+   honours reduced-motion via the NWE-606 motion tokens; never covers the tab bar's hit targets.
+3. **Progress reflects reality:** `thought` → "Thinking…"; each `function_call` → a humanised line
+   from a tool→copy map (unknown tool names degrade to a generic "Checking your data…"). Text
+   deltas append progressively. Component-tested with a scripted event sequence.
+4. **Threads:** new chat starts a thread; `GET /assistant/threads` lists them (newest first);
+   opening one resumes via `GET /assistant/threads/:id` and continues by sending `thread_id`.
+   Long-press FAB → thread list. Empty/loading/error states on every surface.
+5. **Transparency:** the "What I looked at" trace renders from `tool_trace` on every assistant
+   message that used tools, and is absent (not an empty box) when none were used. Component-tested.
+6. **Failed turns** are visually distinct and offer Retry (re-sends the same message to the same
+   thread). Quota `RATE_LIMITED` renders its own friendly state, not a generic error.
+7. **Retention disclosure** (required before this ships, per docs/ai.md): a short, honest line in
+   the Hub's first-run state + Profile explaining that conversations are processed and briefly
+   retained by Google, and that photos are never sent to the Hub.
+**Depends on:** NWE-122.
+
+**Completed 2026-07-21:** full-screen Hub + safe-area FAB/long-press threads, incremental
+`expo/fetch` SSE parser/fallback, real event-driven progress, markdown, persisted threads,
+transparency trace, retry/quota states, and Hub/Profile retention disclosure. Component and shared
+parser tests cover streamed events, hostile splits, traces, and failed turns.
+
+---
+
+### NWE-124 · Proposals & approval sheet — `[~]` · O
+**Goal:** close the loop — the assistant can *propose* real changes, and the user approves them
+with a tap. This is what makes the Hub a hub rather than a chatbot. Completes S1 and S2 from the
+design doc.
+**UI:** when the assistant proposes something, an inline **proposal card** appears in the thread
+(title, one-line human summary, a compact diff — e.g. "3 meals · 2,180 kcal" or "Day 2: +1 set on
+rows, −1 exercise"). Tap → **gorhom bottom sheet** with the full detail (per-meal recipes and
+macros; per-day exercise changes; target before→after). Sheet footer: **Approve** (primary) and a
+grabber — **swipe down keeps the proposal in the thread and the conversation going** (explicitly
+not a dismissal of the chat). After approval the card becomes a confirmed state ("Added to your
+food log", "Routine updated") and the assistant acknowledges in-thread.
+**Acceptance criteria:**
+1. **Proposal tools** join the registry with `kind: 'proposal'` — `propose_program_revision`,
+   `propose_meal_plan`, `propose_food_logs`, `propose_target_change`. The dispatcher **still has no
+   mutation path**: proposal tools only validate args and return an artifact. The existing registry
+   test is extended to assert every proposal tool performs zero writes. TDD'd.
+2. **Persistence:** each proposal is stored as `insights(kind='assistant')` with its payload +
+   `model`/`prompt_version`, and linked from the emitting message via
+   `assistant_messages.proposal_insight_id`. The `proposal` SSE event (already in the shared union)
+   is emitted with `{insight_id, proposal_kind}`.
+3. **Apply endpoint:** `POST /assistant/proposals/:id/apply` validates the payload with the shared
+   Zod schema **again** (never trust stored JSON), delegates to the *existing* endpoint for that
+   kind (`/routines/generated/save`, `/food-logs`, `/nutrition/plan/log-meal`, `PATCH /me`), stamps
+   `applied_at`, and is **idempotent** — applying twice does not double-write. Cross-user 404.
+   `POST /assistant/proposals/:id/dismiss` stamps `dismissed_at` and leaves the thread intact.
+4. **Safety rails carry through:** allergies remain absolute in any nutrition proposal; a
+   `propose_target_change` on a `targets_locked` profile is refused with a clear explanation rather
+   than silently applied. Integration-tested for all four kinds, including the allergy case.
+5. **UI:** proposal card → sheet → Approve applies and confirms; swipe-down keeps both the proposal
+   and the conversation alive. Both paths component-tested, plus the already-applied state.
+6. **E2E (Maestro):** S1 (advice → program revision → approve) and S2 ("I ate x y z" → prefilled
+   food logs → approve) run end-to-end against mocked AI.
+**Depends on:** NWE-122, NWE-123.
+
+**Implemented locally 2026-07-21:** four pure proposal tools, assistant-insight persistence + SSE linkage,
+owned idempotent apply/dismiss endpoints with allergy/target-lock rails, inline cards and approval
+sheet/confirmed state, integration/component coverage, and Maestro S1/S2 flow definitions. Story
+remains `[~]` until those two flows are run against a rebuilt dev client and scripted local AI.
+
+---
+
+### NWE-125 · Migrate chat features to Interactions API — `[x]` · M
+**Goal:** stop maintaining two AI paths for the same *shape* of feature. Program-refine and
+meal-plan-refine are conversations; move them onto the Interactions API the Hub already uses.
+**Acceptance criteria:**
+1. `refineProgram` and `refineMealPlan` call the shared Interactions transport instead of
+   `geminiJson`, continuing threads via `previous_interaction_id` rather than re-sending an
+   8-turn history window.
+2. **Behaviour is unchanged from the user's side:** two-channel `{reply, updated_*}` output, the
+   ≤20-turn cap, cross-user 404, and clean `UPSTREAM_ERROR` when Gemini is down all still hold.
+   The existing integration tests pass **unmodified** except for the mock transport they drive —
+   that is the migration's proof.
+3. Mock hooks are unified: the `GEMINI_MOCK_INTERACTION_SEQUENCE` mechanism replaces the
+   per-feature `GEMINI_MOCK_*_REFINE` variables, with the old names accepted for one release.
+4. Prompt versions bump (`program-refine.v2`, `meal-plan-refine.v2`) so stored rows remain
+   attributable to the model/prompt that produced them.
+5. Rollback is a single env flag (`ASSISTANT_INTERACTIONS_REFINE=off`) for one release, so a
+   regression in production does not require a redeploy to undo.
+**Depends on:** NWE-122.
+
+**Completed 2026-07-21:** program/meal refiners now resume stored Interactions IDs, attribute v2
+prompts, share the interaction mock transport, retain legacy mock names, and support the one-release
+`ASSISTANT_INTERACTIONS_REFINE=off` compatibility mode.
+
+---
+
+### NWE-126 · Migrate one-shot generators to Interactions API — `[~]` · M
+**Goal:** finish the consolidation so `generateContent` (now legacy) is gone from the codebase and
+there is exactly one way this app talks to Gemini.
+**Scope:** weekly review (501), council (511), physique compare (507), program generation (509),
+meal-plan generation (121), snap-to-log photo analysis (508).
+**Acceptance criteria:**
+1. Each generator moves to the Interactions transport with `store=false` where no continuation is
+   needed (these are one-shot — they must **not** create retained server-side state unnecessarily).
+2. **Every existing integration test for these six features passes unchanged**, including the
+   deterministic local fallbacks when Gemini is unreachable and the physique/photo path proving
+   **no image is ever persisted**.
+3. Photo-bearing calls (507/508) are re-verified against the privacy promise: ephemeral in-memory
+   only, text stored, nothing image-shaped written server-side. This is re-tested, not assumed.
+4. `services/gemini.ts`'s `geminiJson` is deleted once nothing imports it; `docs/ai.md` is updated
+   so no doc still describes the legacy path.
+5. Each feature migrates as its own commit with its own verification, so any single regression is
+   independently revertable. **Live-verify on prod** after deploy, per the Definition of Done.
+**Risk note:** this touches five shipped, working AI features. It is deliberately sequenced last in
+the epic and after the Hub has proven the pattern in production.
+**Depends on:** NWE-125.
+
+**Implemented locally 2026-07-21:** all one-shot generators (plus routine diff and coach-memory
+distillation) use the shared Interactions transport with `store=false`; image parts remain
+ephemeral and the legacy `generateContent`/`geminiJson` path is deleted. Local automated
+verification is complete. Story remains `[~]` only because its required per-feature commits,
+deployment, and production live-verification were not authorized/performed in this session.
+
+---
+
+### NWE-127 · Expose the tool registry as a remote MCP server — `⏸ blocked` · M
+**Goal:** let tools built for the Hub be reused by other clients (Claude, a CLI, a future web app)
+without reimplementing them.
+**Blocked on the platform, not on us:** Gemini 3.x **does not support remote MCP yet** ("coming
+soon"; currently `gemini-3.5-flash` / Managed Agents only), and remote MCP requires **Streamable
+HTTP** — SSE servers are not supported. Adopting it today would mean dropping to a weaker model and
+losing the Gemini 3 thinking that measurably improves tool selection.
+**Design notes captured now (per the approved spec) so the decision isn't re-derived later — this
+story gets real acceptance criteria when it unblocks:**
+1. The registry is already MCP-shaped (`{type,name,description,parameters}` + JSON Schema), so
+   exposure is a **transport change, not a tool rewrite** — that is the whole point of NWE-122's
+   shape.
+2. Exposure needs a **Streamable HTTP** endpoint and a per-user auth story: Google's sandbox would
+   call it from Google infrastructure, so the endpoint must be public and carry a scoped,
+   short-lived per-user credential — never the user's Supabase JWT directly.
+3. **Privacy gate:** this routes user data through a third-party sandbox. It requires an explicit
+   product decision and user-facing disclosure before it ships, consistent with docs/ai.md.
+4. Revisit when (a) Gemini 3.x supports remote MCP, **and** (b) a second client actually exists.
+   Absent (b), in-process remains cheaper, faster, and more private for identical token cost.
+**Depends on:** NWE-124.
+
+---
+
+## Epic 5d — Rich, editable proposals
+
+> Approved 2026-07-22. The Hub can already propose and apply four kinds of change (NWE-124), but
+> the proposals are **shallow** (meal totals only, no ingredients, no micros, no provenance) and
+> **read-only** (a 150 g → 200 g correction costs a full agentic round-trip). This epic makes them
+> deep and editable, and adds the missing workout-log capability.
+>
+> **Nothing here weakens the safety model.** The registry still has no mutation path; every write
+> is still `proposal → review sheet → explicit approval → existing authenticated endpoint`.
+>
+> **Two facts the original schema anticipated** (verified 2026-07-22, they shape the whole epic):
+> `food_logs.ingredients jsonb` already exists — its `0001` comment reads *"kept so the entry stays
+> editable ingredient-by-ingredient"* — and is currently **unwritten**. And the USDA client already
+> fetches the full `foodNutrients` array but discards everything except four macros. Most of this
+> epic is *using* what is already there, not adding new infrastructure.
+
+### NWE-128 · Per-ingredient proposal payloads — `[x]` · O
+**Goal:** the precondition for everything else in this epic. A proposal must carry **per-ingredient,
+per-100g** nutrition, not just a meal total — otherwise editing a quantity can only be a naive
+`× new/old` on the whole entry, which is wrong for any composite dish (scaling "chicken curry" by
+1.33 would also scale the cream and rice the user did not touch).
+**Why per-100g:** it is already the app's convention (`recipe_items.calories_per_100g` et al.) and
+the shape both USDA and Open Food Facts return, so scaling one ingredient is an exact linear
+multiply against a known basis — not a percentage guess.
+**Acceptance criteria:**
+1. **Shared schema (TDD, test-first).** New `proposalIngredientSchema` in `packages/shared`:
+   `{name, quantity_g, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g,
+   source: 'usda'|'openfoodfacts'|'estimated', source_id?, fdc_id?}`. `foodLogProposalEntrySchema`
+   extends the existing entry with `ingredients: proposalIngredientSchema[]` (1–30) and keeps the
+   denormalized totals. Totals must equal the ingredient sum within ±1 kcal / ±0.5 g — enforced by
+   a schema `.refine()` so an inconsistent proposal cannot be stored at all.
+2. **Pure math (TDD, test-first).** `ingredientTotals(ingredients)` and
+   `scaleIngredient(ingredient, quantity_g)` in `packages/shared`, rounding to 1 dp. Unit tests
+   cover: single ingredient, composite dish, zero-quantity, ingredient removal, and the specific
+   regression **"150 g chicken → 200 g in a 4-ingredient curry changes only the chicken's
+   contribution."**
+3. **Resolver returns ingredients.** `resolve_macros` returns the per-ingredient breakdown with
+   per-100g bases and a `source` per row, instead of a single collapsed total. Existing callers
+   (snap-to-log 508) keep working — asserted by their existing tests passing unchanged.
+4. **`propose_food_logs` emits the new payload**, and `applyProposal` writes the breakdown into the
+   **existing, currently-unused `food_logs.ingredients` jsonb** column. No migration needed for
+   this story — verified the column exists with the intended shape.
+5. **Backwards compatibility.** Proposals persisted before this story (no `ingredients`) still
+   render and still apply; the sheet shows "ingredient detail unavailable" rather than erroring.
+   Integration-tested against a stored legacy payload.
+6. **Round-trip integration test:** propose → apply → read back `food_logs.ingredients` and assert
+   the stored breakdown matches the proposal, and that summed totals match the row's macros.
+**Depends on:** NWE-124.
+
+---
+
+### NWE-129 · Editable review sheet — `[x]` · O
+**Goal:** let the user correct a proposal *in the sheet* — instantly, deterministically, and without
+spending an AI call. "Actually it was 150 g chicken and no cream" should be two taps, not a
+round-trip.
+**UI:** the gorhom sheet becomes interactive. Each ingredient row: name, an inline numeric
+`quantity_g` field, its computed contribution, a provenance chip (NWE-130), and a delete affordance.
+A live totals bar at the top recalculates on every keystroke, showing the delta against the user's
+daily targets. Servings stepper, meal-type chips and date remain editable. Workout proposals get the
+equivalent: per-set `reps`/`weight`/`duration`/`distance` fields. Footer: **Approve** (applies the
+*edited* payload), plus a subtle "ask the assistant" affordance for changes local editing cannot do.
+**The two-tier rule (the core design decision):**
+- **Local & free — must never call the AI:** change a quantity, delete an ingredient, change
+  servings/meal type/date, edit sets/reps/weight/distance.
+- **AI-assisted — one resolution call, not a full agentic turn:** add or swap an ingredient
+  ("swap cream for yoghurt"), because that needs nutrition data the client does not have.
+**Acceptance criteria:**
+1. **Local edits perform zero network calls.** Component test asserts the API client is **not**
+   invoked when quantities change, ingredients are deleted, or servings change — this is the
+   story's headline property and must be tested explicitly, not assumed.
+2. Totals recalculate from `ingredientTotals`/`scaleIngredient` (NWE-128), never from a re-fetch.
+   Displayed macros match the shared math to 1 dp. Component-tested including the curry regression.
+3. **Approve applies exactly what is on screen.** The edited payload is re-validated with the shared
+   Zod schema client-side *and* server-side before the write; a payload whose totals no longer match
+   its ingredients is rejected with a clear message rather than silently written.
+4. **Add/swap ingredient** calls a single resolve endpoint (not the agent loop), shows a pending row
+   while resolving, and flags the result's provenance. Failure leaves the sheet untouched with a
+   friendly retry — never a half-applied edit.
+5. **Deleting the last ingredient** disables Approve with an explanatory message rather than writing
+   an empty entry.
+6. Edits are **discarded on swipe-down** and the original proposal remains intact in the thread
+   (consistent with NWE-124's "keep chatting" behaviour). Re-opening shows the original, not a
+   half-edited draft. Component-tested.
+7. Numeric inputs are keyboard-safe, `keyboardType="numeric"`, reject negatives and non-numerics,
+   and cap at the schema maxima. Accessibility labels on every control.
+**Depends on:** NWE-128.
+
+---
+
+### NWE-130 · Micronutrients & provenance — `[x]` · M
+**Goal:** make the nutrition data both *deeper* (micros, not just four macros) and *honest* (the
+user can see which numbers are measured and which are guessed).
+**Why provenance matters:** the app already blends deterministic sources (USDA, Open Food Facts)
+with Gemini estimates, but presents them identically. A user deserves to know that "chicken breast:
+165 kcal" is a database value while "grandma's stew: 420 kcal" is a model's guess.
+**Acceptance criteria:**
+1. **Extract what is already fetched.** The USDA client currently maps `foodNutrients` down to four
+   macros and discards the rest — extend it to also capture fiber, sugar, saturated fat, sodium,
+   potassium, calcium, iron, and vitamin C where present. Open Food Facts equivalents mapped where
+   its `nutriments` provide them. Missing values stay **`null`, never `0`** — a zero is a claim,
+   a null is an absence. Unit-tested against fixture payloads for both providers.
+2. **Shared schema:** `micronutrientsSchema` with every field nullable, extending
+   `proposalIngredientSchema`. Aggregation ignores nulls and marks a day total "partial" when any
+   contributing ingredient lacked that nutrient — so the UI never implies false completeness. TDD'd.
+3. **Persistence:** micros ride in the existing `food_logs.ingredients` jsonb (no schema migration —
+   verified the column exists). A day's micro totals are computed on read from the breakdown; no
+   denormalized micro columns are added in this story.
+4. **Provenance is per-ingredient and visible:** each row carries `source` and renders a chip —
+   "USDA", "Open Food Facts", or "Estimated". Estimated rows are visually distinct, and any total
+   containing an estimate is labelled as approximate. Component-tested.
+5. **Deterministic sources win.** The resolver prefers USDA → Open Food Facts → Gemini estimate, in
+   that order, per ingredient. Gemini is only asked for ingredients the databases could not resolve.
+   Integration-tested with a mixed dish (one resolvable, one not) asserting the source mix.
+6. **Harden the allergy check.** Replace the current substring match over the stringified proposal
+   (which catches "peanuts" but not "groundnut" or "satay") with a structured check over resolved
+   ingredient names plus a synonym/derivative list. Any allergen match blocks approval with a clear
+   message. Integration-tested with a synonym case that today's check would miss.
+7. Micro display in the sheet is collapsed by default — macros stay the primary read; micros expand.
+**Depends on:** NWE-128.
+
+---
+
+### NWE-131 · Workout-log proposals & recipe tools — `[x]` · O
+**Goal:** close the two capability holes. The assistant cannot currently log a completed workout at
+all, and nine recipe endpoints exist that it cannot reach.
+**UI:** a workout proposal card ("Push day · 6 exercises · 48 min") opens a sheet with date, title,
+duration, notes, and exercises grouped into sets — each set editable (reps / weight / duration /
+distance per the exercise's `kind`). Exercises that could not be matched to the library show a
+warning chip with a "pick exercise" affordance rather than failing the whole proposal. Footer:
+**Approve and log workout**. Food proposals gain a secondary **Save as recipe** action.
+**Acceptance criteria:**
+1. **`propose_workout_log` tool** (`kind: 'proposal'`, therefore still no mutation path) with a
+   shared `workoutLogProposalSchema`: `{logged_on, title, duration_min?, notes?, exercises:
+   [{name, exercise_id?, kind, sets: [{reps?, weight_kg?, duration_min?, distance_km?}]}]}`.
+   Cardio sets reject `reps`/`weight_kg`; strength sets reject `distance_km` — enforced in the
+   schema, TDD'd.
+2. **Exercise matching** resolves names against the library (exact → case-insensitive → user's
+   custom exercises). Unmatched exercises are surfaced as warnings **and are user-resolvable in the
+   sheet**; approval is blocked only while an unmatched exercise remains. This must not silently
+   invent an exercise row.
+3. **Apply** delegates to the existing `POST /workout-sessions` (session + sets transactional), is
+   **idempotent** via the same `applied_at` guard as NWE-124, and returns a confirmed card state
+   ("Workout logged"). Cross-user 404. Integration-tested.
+4. **Read tools added:** `get_recipes` and `get_recipe` over the existing endpoints, with the
+   registry's standard Zod args and row caps. Registry test extended to assert they are `kind:
+   'read'` and perform no writes.
+5. **`propose_recipe` tool** + apply path creating a recipe via the existing NWE-202 endpoint,
+   reusing the NWE-128 ingredient payload so a proposed recipe carries per-100g bases.
+6. **"Save as recipe"** in the food proposal sheet creates a reusable recipe from the (possibly
+   edited) ingredient breakdown **without** logging it twice — approving logs food, saving creates a
+   recipe, and the two actions are independent. Integration-tested for both orders.
+7. **Registry hygiene:** adding four tools must not degrade tool selection — the system instruction
+   gains explicit "when to use" guidance for the read/propose split, and the total tool count and
+   token cost of declarations is recorded in the story's verification notes.
+8. **E2E (Maestro):** "log the workout I just did" → card → edit a set → approve → appears in
+   Workouts history.
+**Depends on:** NWE-128, NWE-129.
+
+---
+
+### NWE-132 · Proposal versioning — `[x]` · S
+**Goal:** when a conversation revises a proposal, the thread should show one current card — not a
+stack of near-identical ones the user must disambiguate.
+**Acceptance criteria:**
+1. `insights(kind='assistant')` payloads gain `supersedes_insight_id`; a revised proposal stamps the
+   previous row's `dismissed_at` with reason `superseded` (no schema migration — reuses existing
+   lifecycle columns).
+2. A superseded card renders collapsed as "updated below" and **cannot be approved**; only the
+   current version can. Integration-tested that approving a superseded proposal returns a clear
+   error rather than applying stale data — this is the correctness point of the story.
+3. Thread reads return only the current version expanded; history stays inspectable but out of the
+   way. Component-tested.
+4. Applying the current version leaves superseded siblings untouched (no cascade weirdness).
+**Depends on:** NWE-124, NWE-128.
+
+> **Completed 2026-07-22:** rich per-ingredient food/recipe payloads and deterministic edit math;
+> safe-area-aware read-only-first review sheets with explicit Edit mode; USDA/Open Food Facts/Gemini provenance and partial micro
+> totals; structured allergen protection; workout-log and recipe read/proposal/apply paths; and
+> stale-proposal versioning. The registry now exposes **19 tools (13 read, 6 proposal)** with
+> **14,801 bytes** of closed, fully nested declarations. Gemini validated tool choice and strict
+> runtime schemas reject undeclared arguments while explicit unions preserve intentional flexibility.
+> Verification: 121 shared tests, 74 app tests, 73 API tests,
+> TypeScript, the no-direct-Supabase architecture check, whitespace validation, and a local iPhone
+> 16 Plus release-build Maestro path that edited Bench Press set 1 from 8→10, approved it, verified
+> the persisted `{10,8,8}` sets, and found the workout in History. No migration was needed because
+> the existing `food_logs.ingredients` JSONB and insight lifecycle fields cover these stories.
+
+---
+
 ## Epic 6 — Habits, engagement & gamification
 
 Guardrail (locked, also in AGENTS.md): celebrate **real logged actions**, computed server-side —
@@ -838,6 +1224,89 @@ One shared animation layer so every win feels consistent — used by ring closes
 3. Accent-color audit across screens (one green, one destructive red, macro colors consistent).
 4. User sign-off on the visual identity noted here.
 
+### NWE-805 · Liquid Glass adoption (iOS 26 design language) — `[ ]` · O
+
+**Context — separate the two things Apple actually requires** (verified 2026-07-22):
+- **Building with the iOS 26 SDK / Xcode 26 is mandatory** for any App Store Connect upload from
+  **28 April**. This is a hard gate on shipping at all.
+- **Adopting Liquid Glass visually is NOT mandatory** and does not affect review. But apps built
+  with the iOS 26 SDK get it applied to native UI **by default**, so it arrives whether or not we
+  design for it. The `UIDesignRequiresCompatibility: YES` Info.plist flag opts out — Apple has said
+  it will be **removed in Xcode 27** (deadline ~April 2027), so it buys ~a year, not forever.
+
+**Goal:** adopt Liquid Glass deliberately on our own terms — as a pass through the shared
+primitives — rather than discovering what iOS did to our UI after a forced SDK bump.
+
+**Why this is cheap for us:** every screen already routes through ten primitives in
+`components/ui.tsx` (`Card`, `Button`, `Chip`, `ChipRow`, `Input`, `OptionRow`, `SectionTitle`,
+`Muted`, `EmptyState`, `ProgressBar`) plus `Themed.tsx`. Glass is adopted in those, not sprayed
+across ~30 screens. That is the payoff from the existing convention — and the reason this is a
+refactor story, not a redesign.
+
+**Stack support (verified):** Expo SDK 57 / RN 0.86 needs **no upgrade**. First-party
+[`expo-glass-effect`](https://docs.expo.dev/versions/latest/sdk/glass-effect/) provides `GlassView`,
+`GlassContainer`, `isLiquidGlassAvailable()`, with props `glassEffectStyle` (`clear`/`regular`),
+`tintColor`, `isInteractive`, `colorScheme`. **It degrades to a plain `View` on Android and iOS < 26**,
+so this does not fork the codebase — consistent with "iOS first, keep Android working".
+
+**Acceptance criteria:**
+
+1. **Capability gate, one place.** A single `lib/glass.ts` exposing `glassAvailable()` (wrapping
+   `isLiquidGlassAvailable()`) and a `<Surface>` primitive that renders `GlassView` when available
+   and today's `Card`/`View` otherwise. **No screen imports `expo-glass-effect` directly** — asserted
+   by a lint/grep check in CI, so the fallback path can never be bypassed by accident.
+2. **Primitives converted, API unchanged.** `Card`, `Button`, `Chip`, `Input`, `OptionRow` and
+   `EmptyState` render glass where appropriate via `<Surface>`, with **no changes to their props**.
+   Every existing component test passes **unmodified** — that is the proof the refactor is
+   behaviour-preserving. Primitives that should *not* be glass (`Muted`, `SectionTitle`,
+   `ProgressBar`, `ChipRow`) are explicitly listed as out of scope with a one-line reason each.
+3. **Native tabs.** Migrate `app/(tabs)/_layout.tsx` to Expo Router's native tabs so the system
+   Liquid Glass tab bar is used, preserving: the five tabs, per-platform `SymbolView` icons
+   (ios SF Symbol / android Material), `tabBarAccessibilityLabel` on each, and the accent tint.
+   **Highest-impact single change** — the tab bar is on every screen. If native tabs cannot preserve
+   the per-platform icon contract, this AC is deferred to its own story rather than degrading
+   Android; record the decision here.
+4. **Floating surfaces get glass first** (they sit over content, where the effect is meaningful and
+   the fallback is least jarring): the assistant **FAB** (currently opaque `Brand.accent` with a
+   shadow) and the **gorhom bottom sheet** backgrounds used by the AI Hub proposal sheet and the
+   Workouts routine sheet. Sheets need a deliberate `backgroundComponent`, not a wrapper swap —
+   gorhom manages its own background.
+5. **Contrast audit — the real risk.** Glass changes the effective background under text and
+   controls. Audit `Brand.accent #16a34a` and `Brand.destructive #dc2626` on glass in **light and
+   dark**, over both light and dark content, and verify **WCAG AA (4.5:1 body, 3:1 large/controls)**.
+   Where a token fails, adjust the token or apply `tintColor` — **do not** ship failing contrast.
+   Record the measured ratios in this story's notes. Macro colors (protein/carbs/fat) audited too.
+6. **Legibility over scrolling content.** Glass over a scrolling list can become unreadable when
+   busy content passes under it. Verify the FAB, tab bar and sheet headers against the densest real
+   screens (Workouts history, Food day view, a long assistant thread) and add a scrim/`tintColor`
+   where needed. This is a manual check with screenshots attached to the story.
+7. **Reduced-motion & accessibility.** Respect `prefers-reduced-motion` (glass animation props
+   disabled, per the NWE-606 motion system) and **Reduce Transparency** — when the OS setting is on,
+   fall back to the opaque surface. Verified with the iOS accessibility settings enabled.
+   Known pitfall from the docs: `opacity: 0` prevents glass rendering — use the animation props.
+8. **Cross-platform proof.** Screenshots of the same three screens on: iOS 26 (glass), iOS 25
+   (fallback), Android (fallback). All three must be visually coherent — the fallback must look
+   intentional, not broken. This is the AC that proves the "does not fork the codebase" claim.
+9. **Build gate.** `npx expo run:ios` builds against the iOS 26 SDK; app runs on device.
+   `UIDesignRequiresCompatibility` is **not** set (we are adopting, not opting out) — and if it is
+   set temporarily during the migration, this story does not close until it is removed.
+10. **Docs.** `docs/ui-flows.md` "Cross-cutting UX rules" gains a glass section (when to use
+    `<Surface>`, when not to, the contrast rule); `components/CLAUDE.md` documents the
+    `<Surface>`-not-`GlassView` convention so future stories follow it.
+
+**Explicitly out of scope:** redesigning any screen's layout or information hierarchy; new
+animations; changing the accent identity (that is NWE-801). This story changes *material*, not
+*design*.
+
+**Risks:**
+- Native tabs may not preserve the per-platform icon/accessibility contract → AC-3 has an escape.
+- Contrast failures may force a token change that ripples into NWE-801's branding pass → sequence
+  after 801 if branding is still in flux.
+- Requires a dev build + prebuild (consistent with the no-Expo-Go decision; no conflict).
+
+**Depends on:** NWE-801 (accent identity settled first, so the contrast audit is not redone).
+**Blocks:** NWE-802 only if the 28 April SDK deadline is in play at build time.
+
 ### NWE-802 · TestFlight via EAS — `[ ]` · S
 **Acceptance criteria:**
 1. EAS project configured; `eas.json` with development / preview / production profiles.
@@ -859,13 +1328,32 @@ One shared animation layer so every win feels consistent — used by ring closes
 
 ## v1.1 — first update
 
-NWE-505 (coach chat) once the council is live and quota behavior under real usage is known.
+NWE-123…127 complete the AI Hub whose backend foundation ships in NWE-122 — full stories live in
+**Epic 5c** above. The approved Hub supersedes the former NWE-505 coach-chat concept.
+
+Order and rationale: **123** (screen/FAB/streaming) makes 122 usable → **124** (proposals +
+approval) delivers both design scenarios and is the point the Hub becomes a hub → **125** migrates
+the two chat features to the Interactions API → **126** migrates the six one-shot generators and
+deletes the legacy `generateContent` path. **127** (remote MCP) is blocked on Google shipping
+Gemini 3 remote-MCP support and on a second client existing.
+
+NWE-126 is the riskiest story in the epic — it re-verifies five shipped AI features — which is why
+it is sequenced last, after the Hub has proven the pattern in production.
 
 ---
 
 ## Discovered work
 
 *(agents: append findings here instead of expanding story scope)*
+
+- 2026-07-22 (AI workout review): the existing `exercises` table is the correct UUID-backed
+  canonical directory, but its global starter catalogue is only ~55 rows and has no explicit
+  alias relation. Current assistant matching now handles case and parenthetical labels such as
+  `Romanian Deadlift (RDL)` invisibly, and unknown names no longer block logging. Follow-up:
+  select a suitably licensed comprehensive exercise catalogue, import it through a forward-only
+  migration, and add a normalized `exercise_aliases(alias, exercise_id)` table with uniqueness,
+  indexes, RLS/read grants, and acronym/equipment variants. Do not ship a duplicated client file;
+  the server table must remain the source of truth for analytics foreign keys.
 
 - 2026-07-21 (bugfixes, from device testing): **two UX bugs fixed.**
   1. **Onboarding re-showed on every launch.** `finish()` (Skip / "Start tracking") only

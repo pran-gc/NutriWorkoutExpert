@@ -10,6 +10,14 @@ function addDays(date: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+function previousWeekEnd(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  const daysSinceMonday = (d.getUTCDay() + 6) % 7;
+  return addDays(date, -(daysSinceMonday + 1));
+}
+
+const COUNCIL_WEEK = previousWeekEnd(TODAY);
+
 Deno.test('insights: weekly summary and generated review are idempotent', async () => {
   const a = await createTestUser();
   try {
@@ -225,7 +233,7 @@ Deno.test('physique compare requires consent, stores text only, and deletes feed
 Deno.test('coaches: council, generated program save, and adaptation suggestion', async () => {
   const a = await createTestUser();
   try {
-    for (const date of [addDays(TODAY, -2), addDays(TODAY, -1), TODAY]) {
+    for (const date of [addDays(COUNCIL_WEEK, -2), addDays(COUNCIL_WEEK, -1), COUNCIL_WEEK]) {
       await apiAs(a.token, 'POST', '/food-logs', {
         food_name: `Council meal ${date}`,
         meal_type: 'lunch',
@@ -240,10 +248,10 @@ Deno.test('coaches: council, generated program save, and adaptation suggestion',
     }
     await apiAs(a.token, 'POST', '/workouts', {
       title: 'Council lift',
-      logged_on: TODAY,
+      logged_on: COUNCIL_WEEK,
       sets: [{ exercise: 'Bench Press', set_number: 1, reps: 8, weight_kg: 60 }],
     });
-    const council = await apiAs(a.token, 'POST', '/insights/council', { week: TODAY });
+    const council = await apiAs(a.token, 'POST', '/insights/council', { week: COUNCIL_WEEK });
     assertEquals(council.status, 200);
     assertEquals(council.body.data.kind, 'council');
 
@@ -299,7 +307,7 @@ Deno.test('coach council: generate falls back to weekly for sparse users and cou
     assertEquals(sparseGenerated.status, 200);
     assertEquals(sparseGenerated.body.data.kind, 'weekly');
 
-    for (const date of [addDays(TODAY, -2), addDays(TODAY, -1), TODAY]) {
+    for (const date of [addDays(COUNCIL_WEEK, -2), addDays(COUNCIL_WEEK, -1), COUNCIL_WEEK]) {
       await apiAs(rich.token, 'POST', '/food-logs', {
         food_name: `Rich meal ${date}`,
         meal_type: 'lunch',
@@ -314,10 +322,10 @@ Deno.test('coach council: generate falls back to weekly for sparse users and cou
     }
     await apiAs(rich.token, 'POST', '/workouts', {
       title: 'Rich lift',
-      logged_on: TODAY,
+      logged_on: COUNCIL_WEEK,
       sets: [{ exercise: 'Bench Press', set_number: 1, reps: 8, weight_kg: 60 }],
     });
-    const richGenerated = await apiAs(rich.token, 'POST', '/insights/generate', { week: TODAY });
+    const richGenerated = await apiAs(rich.token, 'POST', '/insights/generate', { week: COUNCIL_WEEK });
     assertEquals(richGenerated.status, 200);
     assertEquals(richGenerated.body.data.kind, 'council');
   } finally {
@@ -357,7 +365,7 @@ Deno.test('coach council: applying target proposals is explicit, logged, and res
         calorie_target: 2200,
         targets_locked: user === locked,
       });
-      for (const date of [addDays(TODAY, -2), addDays(TODAY, -1), TODAY]) {
+      for (const date of [addDays(COUNCIL_WEEK, -2), addDays(COUNCIL_WEEK, -1), COUNCIL_WEEK]) {
         await apiAs(user.token, 'POST', '/food-logs', {
           food_name: `Apply meal ${date}`,
           meal_type: 'lunch',
@@ -372,12 +380,12 @@ Deno.test('coach council: applying target proposals is explicit, logged, and res
       }
       await apiAs(user.token, 'POST', '/workouts', {
         title: 'Apply lift',
-        logged_on: TODAY,
+        logged_on: COUNCIL_WEEK,
         sets: [{ exercise: 'Bench Press', set_number: 1, reps: 8, weight_kg: 60 }],
       });
     }
 
-    const unlockedCouncil = await apiAs(unlocked.token, 'POST', '/insights/council', { week: TODAY });
+    const unlockedCouncil = await apiAs(unlocked.token, 'POST', '/insights/council', { week: COUNCIL_WEEK });
     const unlockedApply = await apiAs(unlocked.token, 'POST', `/insights/${unlockedCouncil.body.data.id}/apply-proposal`, {
       proposal: mockPlan.coaches.goal.proposals[0],
     });
@@ -386,7 +394,7 @@ Deno.test('coach council: applying target proposals is explicit, logged, and res
     assertEquals(unlockedApply.body.data.profile.targets_locked, true);
     assertEquals(unlockedApply.body.data.insight.applied_at !== null, true);
 
-    const lockedCouncil = await apiAs(locked.token, 'POST', '/insights/council', { week: TODAY });
+    const lockedCouncil = await apiAs(locked.token, 'POST', '/insights/council', { week: COUNCIL_WEEK });
     const lockedApply = await apiAs(locked.token, 'POST', `/insights/${lockedCouncil.body.data.id}/apply-proposal`, {
       proposal: mockPlan.coaches.goal.proposals[0],
     });
@@ -404,7 +412,7 @@ Deno.test('coach council: applying target proposals is explicit, logged, and res
 Deno.test('coach council: deterministic logging-lapse check-in reaches the strict plan payload', async () => {
   const a = await createTestUser();
   try {
-    for (const date of [addDays(TODAY, -5), addDays(TODAY, -4), addDays(TODAY, -3)]) {
+    for (const date of [addDays(COUNCIL_WEEK, -5), addDays(COUNCIL_WEEK, -4), addDays(COUNCIL_WEEK, -3)]) {
       await apiAs(a.token, 'POST', '/food-logs', {
         food_name: `Older meal ${date}`,
         meal_type: 'lunch',
@@ -419,10 +427,10 @@ Deno.test('coach council: deterministic logging-lapse check-in reaches the stric
     }
     await apiAs(a.token, 'POST', '/workouts', {
       title: 'Older lift',
-      logged_on: addDays(TODAY, -3),
+      logged_on: addDays(COUNCIL_WEEK, -3),
       sets: [{ exercise: 'Bench Press', set_number: 1, reps: 8, weight_kg: 60 }],
     });
-    const council = await apiAs(a.token, 'POST', '/insights/council', { week: TODAY });
+    const council = await apiAs(a.token, 'POST', '/insights/council', { week: COUNCIL_WEEK });
     assertEquals(council.status, 200);
     assertEquals(council.body.data.payload.plan.checkins.length > 0, true);
     assertEquals(council.body.data.payload.plan.checkins[0].message.includes('logging'), true);

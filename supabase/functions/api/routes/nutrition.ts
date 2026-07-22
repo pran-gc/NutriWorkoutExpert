@@ -145,6 +145,7 @@ export const nutritionRoute = new Hono<Env>()
       messages: messages.slice(-8),
       userMessage: message,
       contextLines: coachContextLines(coachCtx),
+      previousInteractionId: typeof payload.refine_interaction_id === 'string' ? payload.refine_interaction_id : null,
     });
     if (!result) throw new HttpError('UPSTREAM_ERROR', 'The nutritionist is busy right now — try again in a moment.');
 
@@ -152,8 +153,9 @@ export const nutritionRoute = new Hono<Env>()
       ...payload,
       messages: [...messages, { role: 'user', text: message }, { role: 'coach', text: result.turn.reply }],
       ...(result.turn.updated_plan ? { draft_plan: result.turn.updated_plan } : {}),
+      ...(result.interactionId ? { refine_interaction_id: result.interactionId } : {}),
     };
-    await db.from('insights').update({ payload: updatedPayload, model: result.model }).eq('id', insight_id).eq('user_id', user.id);
+    await db.from('insights').update({ payload: updatedPayload, model: result.model, prompt_version: result.promptVersion }).eq('id', insight_id).eq('user_id', user.id);
     return c.json(ok({ reply: result.turn.reply, updated_plan: result.turn.updated_plan ?? null }));
   })
   .post('/plan/log-meal', zval('json', logPlannedMealSchema), async (c) => {

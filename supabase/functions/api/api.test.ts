@@ -35,3 +35,13 @@ Deno.test('GET /me with a bogus token → 401 (rejected by Supabase verify)', as
   const body = await res.json();
   assertEquals(body.error.code, 'UNAUTHENTICATED');
 });
+
+Deno.test('POST /assistant/chat without a token → 401 UNAUTHENTICATED envelope', async () => {
+  const res = await app.request(`${BASE}/assistant/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: 'Hello' }),
+  });
+  assertEquals(res.status, 401);
+  assertEquals((await res.json()).error.code, 'UNAUTHENTICATED');
+});

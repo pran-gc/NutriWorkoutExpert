@@ -23,6 +23,14 @@ export interface TestUser {
   token: string;
 }
 
+/** User-JWT client for direct RLS assertions in migration integration tests. */
+export function userDb(token: string) {
+  return createClient(SUPABASE_URL, ANON, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
 let counter = 0;
 
 /** Create a confirmed test user and return an access token for API calls. */

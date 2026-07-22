@@ -8,6 +8,7 @@ import { logger } from 'hono/logger';
 import { authMiddleware } from './middleware/auth.ts';
 import { onError } from './middleware/error.ts';
 import { analyticsRoute } from './routes/analytics.ts';
+import { assistantRoute } from './routes/assistant.ts';
 import { cronRoute } from './routes/cron.ts';
 import { exercisesRoute } from './routes/exercises.ts';
 import { favoritesRoute } from './routes/favorites.ts';
@@ -54,6 +55,7 @@ app.use('/routines/*', authMiddleware);
 app.use('/routines', authMiddleware);
 app.use('/nutrition/*', authMiddleware);
 app.use('/analytics/*', authMiddleware);
+app.use('/assistant/*', authMiddleware);
 app.use('/insights/*', authMiddleware);
 app.use('/insights', authMiddleware);
 app.use('/streaks', authMiddleware);
@@ -76,6 +78,7 @@ const routes = app
   .route('/routines', routinesRoute)
   .route('/nutrition', nutritionRoute)
   .route('/analytics', analyticsRoute)
+  .route('/assistant', assistantRoute)
   .route('/insights', insightsRoute)
   .route('/', gamificationRoute)
   .route('/notifications', notificationsRoute);

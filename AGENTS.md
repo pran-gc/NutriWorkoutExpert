@@ -56,12 +56,14 @@ design reference only; the migration is authoritative. If any doc conflicts with
   app (Metro) and API (Deno). Contracts are defined once, there.
 - **Testing**: full pyramid, TDD for domain/API logic (test-first), test-after allowed for UI
   components only. Maestro E2E on the Mac. See docs/testing.md.
-- **AI**: free-tier Gemini via the API only. Aggregates in, text out; versioned prompts.
+- **AI**: Gemini via the API only. Existing one-shot features use aggregates/ephemeral photos;
+  the agentic Hub may fetch capped, PII-free raw rows through RLS-scoped read tools. The model
+  never writes directly; every future write is an explicit user-approved proposal.
 - **Photos: on-device only, never stored server-side** — "your photos are never stored" is a
   product promise. Ephemeral pass-through for opt-in AI analysis only.
 - **Units**: metric (kg / cm / g / ml). Dates: `logged_on` = device-local `YYYY-MM-DD`.
 - **v1.0 scope**: milestones M0–M9 in TASKS.md — the AI coaches (509/510/511) are the USP and
-  ship in 1.0; only coach chat (505) is v1.1.
+  ship in 1.0; the AI Hub (122+) supersedes the former coach-chat story 505.
 - **Gamification guardrail**: quests/badges/streaks reflect real logged actions computed
   server-side (never self-reported); copy never guilts or manufactures FOMO; rest days respected.
 - **Notifications**: permission requested in-context (first enable), never at launch; user

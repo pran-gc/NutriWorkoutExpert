@@ -41,6 +41,10 @@ import type {
   WeightLog,
   WeeklySummary,
   WorkoutSession,
+  AssistantThread,
+  AssistantThreadSummary,
+  AssistantProposal,
+  ingredientMicronutrientTotals,
 } from '@shared';
 
 import { useSession } from '@/components/SessionProvider';
@@ -57,6 +61,7 @@ interface DayTotals {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
+  micronutrients?: ReturnType<typeof ingredientMicronutrientTotals>;
 }
 
 function useHasSession(): boolean {
@@ -739,5 +744,66 @@ export function useRegisterPushToken() {
   return useMutation({
     mutationFn: (input: RegisterPushTokenInput) =>
       unwrap<unknown>(rpc.api.notifications.tokens.$post(arg({ json: input }))),
+  });
+}
+
+// ── Assistant Hub (NWE-123/124) ────────────────────────────────────────────
+export function useAssistantThreads() {
+  const hasSession = useHasSession();
+  return useQuery({
+    queryKey: ['assistant', 'threads'],
+    queryFn: () => unwrap<AssistantThreadSummary[]>(rpc.api.assistant.threads.$get()),
+    enabled: hasSession,
+  });
+}
+
+export function useAssistantThread(id?: string | null) {
+  const hasSession = useHasSession();
+  return useQuery({
+    queryKey: ['assistant', 'thread', id],
+    queryFn: () => unwrap<AssistantThread>(rpc.api.assistant.threads[':id'].$get(arg({ param: { id } }))),
+    enabled: hasSession && Boolean(id),
+  });
+}
+
+export function useApplyAssistantProposal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: string | { id: string; proposal?: AssistantProposal }) => {
+      const { id, proposal } = typeof input === 'string' ? { id: input, proposal: undefined } : input;
+      return unwrap<{ id: string; applied_at: string; result: Record<string, unknown> | null }>(
+        rpc.api.assistant.proposals[':id'].apply.$post(arg({ param: { id }, json: proposal ? { proposal } : {} }))
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['assistant'] });
+      qc.invalidateQueries({ queryKey: ['food-logs'] });
+      qc.invalidateQueries({ queryKey: ['routines'] });
+      qc.invalidateQueries({ queryKey: ['recipes'] });
+      qc.invalidateQueries({ queryKey: ['workouts'] });
+      qc.invalidateQueries({ queryKey: ['me'] });
+    },
+  });
+}
+
+export function useSaveAssistantProposalRecipe() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, proposal }: { id: string; proposal?: Extract<AssistantProposal, { kind: 'food_logs' }> }) =>
+      unwrap<{ id: string; result: Record<string, unknown> }>(rpc.api.assistant.proposals[':id']['save-recipe'].$post(arg({ param: { id }, json: proposal ? { proposal } : {} }))),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['assistant'] });
+      qc.invalidateQueries({ queryKey: ['recipes'] });
+    },
+  });
+}
+
+export function useDismissAssistantProposal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => unwrap<{ id: string; dismissed_at: string }>(
+      rpc.api.assistant.proposals[':id'].dismiss.$post(arg({ param: { id } }))
+    ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['assistant'] }),
   });
 }

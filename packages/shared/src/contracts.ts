@@ -284,7 +284,19 @@ export const resolveFoodSchema = z.object({
 });
 export type ResolveFoodInput = z.infer<typeof resolveFoodSchema>;
 export const resolvedIngredientSchema = aiIngredientSchema.extend({
-  source: z.enum(['usda', 'openfoodfacts', 'ai_estimate']),
+  source: z.enum(['usda', 'openfoodfacts', 'ai_estimate', 'estimated']),
+  source_id: z.string().nullable().optional(),
+  fdc_id: z.number().int().positive().nullable().optional(),
+  calories_per_100g: z.number().min(0),
+  protein_per_100g: z.number().min(0),
+  carbs_per_100g: z.number().min(0),
+  fat_per_100g: z.number().min(0),
+  micronutrients_per_100g: z.object({
+    fiber_g: z.number().min(0).nullable(), sugar_g: z.number().min(0).nullable(),
+    saturated_fat_g: z.number().min(0).nullable(), sodium_mg: z.number().min(0).nullable(),
+    potassium_mg: z.number().min(0).nullable(), calcium_mg: z.number().min(0).nullable(),
+    iron_mg: z.number().min(0).nullable(), vitamin_c_mg: z.number().min(0).nullable(),
+  }),
 });
 export type ResolvedIngredient = z.infer<typeof resolvedIngredientSchema>;
 

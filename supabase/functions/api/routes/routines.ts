@@ -161,6 +161,7 @@ export const routinesRoute = new Hono<Env>()
       messages: messages.slice(-8),
       userMessage: message,
       contextLines: coachContextLines(coachCtx),
+      previousInteractionId: typeof payload.refine_interaction_id === 'string' ? payload.refine_interaction_id : null,
     });
     if (!result) throw new HttpError('UPSTREAM_ERROR', 'The coach is busy right now — try again in a moment.');
 
@@ -173,10 +174,11 @@ export const routinesRoute = new Hono<Env>()
       ...payload,
       messages: newMessages,
       ...(result.turn.updated_program ? { draft_program: result.turn.updated_program } : {}),
+      ...(result.interactionId ? { refine_interaction_id: result.interactionId } : {}),
     };
     const { error: saveErr } = await db
       .from('insights')
-      .update({ payload: updatedPayload, model: result.model })
+      .update({ payload: updatedPayload, model: result.model, prompt_version: result.promptVersion })
       .eq('id', insight_id)
       .eq('user_id', user.id);
     if (saveErr) throw new HttpError('INTERNAL', 'Could not save the conversation.');

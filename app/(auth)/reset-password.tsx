@@ -3,7 +3,7 @@
 // established; we just collect and set the new password.
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
+import { Alert, StyleSheet } from 'react-native';
 
 import { Text, View } from '@/components/Themed';
 import { Button, Input, Muted } from '@/components/ui';
@@ -34,8 +34,7 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={styles.container}>
+    <View style={styles.container}>
         <Text style={styles.title}>Set a new password</Text>
         <Muted>Choose a password you'll remember.</Muted>
         <Input
@@ -46,8 +45,7 @@ export default function ResetPasswordScreen() {
           onChangeText={setPassword}
         />
         <Button title="Update password" onPress={submit} loading={busy} style={{ marginTop: 4 }} />
-      </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

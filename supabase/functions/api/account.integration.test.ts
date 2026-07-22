@@ -60,7 +60,7 @@ Deno.test('DELETE /me removes the user and cascades every table', async () => {
   assertEquals(data.user, null);
 
   // Every user table cascaded to zero rows for this user (checked via service role).
-  for (const table of ['profiles', 'weight_logs', 'food_logs', 'workout_sessions', 'workout_sets']) {
+  for (const table of USER_TABLES) {
     const col = table === 'profiles' ? 'id' : 'user_id';
     const { count } = await admin
       .from(table)

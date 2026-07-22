@@ -6,7 +6,7 @@ import { recipePerServing, recipeTotals } from '@shared';
 import type { Recipe } from '@shared';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet } from 'react-native';
 
 import { Text, View } from '@/components/Themed';
 import { Button, Card, Input, Muted, SectionTitle } from '@/components/ui';
@@ -91,7 +91,7 @@ export default function RecipeEditor() {
   const saving = createRecipe.isPending || updateRecipe.isPending;
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>{id ? 'Edit recipe' : 'New recipe'}</Text>
         <Input placeholder="Recipe name (e.g. Breakfast shake)" value={name} onChangeText={setName} />
@@ -139,7 +139,7 @@ export default function RecipeEditor() {
 
         <Button title={saving ? 'Saving…' : 'Save recipe'} onPress={save} loading={saving} />
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

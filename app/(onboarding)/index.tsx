@@ -5,7 +5,7 @@ type DietaryStyle = NonNullable<CoachingProfile['dietary_style']>;
 const DIETARY_STYLES: DietaryStyle[] = ['omnivore', 'vegetarian', 'vegan', 'pescatarian', 'halal', 'kosher', 'other'];
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet } from 'react-native';
 
 import { useSession } from '@/components/SessionProvider';
 import { Text, View } from '@/components/Themed';
@@ -110,7 +110,7 @@ export default function OnboardingWizard() {
   const current = STEPS[step];
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={{ flex: 1 }}>
       <View style={styles.container}>
         <View style={styles.header}>
           <View style={styles.dots}>
@@ -262,7 +262,7 @@ export default function OnboardingWizard() {
           {current === 'done' && <Button title="Start tracking" onPress={finish} />}
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

@@ -1,0 +1,15 @@
+# NWE-124 S1. Run against the local API with GEMINI_MOCK_INTERACTION_SEQUENCE
+# scripted to call propose_program_revision for the seeded test routine.
+appId: com.prangc.nutriworkoutexpert
+---
+- launchApp
+- assertVisible: 'Today'
+- tapOn: 'Open AI assistant'
+- tapOn: 'Message the AI assistant'
+- inputText: 'Make my pull day a little easier to recover from'
+- tapOn: 'Send message'
+- assertVisible: 'Review proposal'
+- tapOn: 'Review proposal:.*'
+- assertVisible: 'Approve'
+- tapOn: 'Approve'
+- assertVisible: 'Routine updated'

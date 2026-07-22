@@ -3,12 +3,14 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { initialWindowMetrics, SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
+import { AppScreen } from '@/components/AppScreen';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { SessionProvider, useSession } from '@/components/SessionProvider';
 import { View } from '@/components/Themed';
@@ -25,6 +27,17 @@ export {
 export const unstable_settings = {
   initialRouteName: '(tabs)',
 };
+
+// The outer native Stack only applies this boundary to routes that render
+// custom chrome. Nested navigators and native headers already own their insets.
+const HEADERLESS_SAFE_AREA_ROUTES = new Set([
+  '(auth)/sign-in',
+  '(auth)/reset-password',
+  '(onboarding)',
+  'assistant',
+  'photo-viewer',
+]);
+const FULL_SCREEN_MODAL_ROUTES = new Set(['assistant', 'photo-viewer']);
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -51,7 +64,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <QueryClientProvider client={queryClient}>
           <BottomSheetModalProvider>
             <SessionProvider>
@@ -145,7 +158,20 @@ function RootLayoutNav() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      <Stack
+        screenLayout={({ children, route }) => {
+          // Tab form screens already manage keyboard resizing inside their nested
+          // navigator. Every root route gets one keyboard boundary here.
+          if (route.name === '(tabs)') return children;
+          return (
+            <AppScreen
+              modal={FULL_SCREEN_MODAL_ROUTES.has(route.name)}
+              safeArea={HEADERLESS_SAFE_AREA_ROUTES.has(route.name)}>
+              {children}
+            </AppScreen>
+          );
+        }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/sign-in" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)/reset-password" options={{ headerShown: false }} />
@@ -155,6 +181,7 @@ function RootLayoutNav() {
         <Stack.Screen name="gym-analytics" options={{ title: 'Gym analytics' }} />
         <Stack.Screen name="goal-analytics" options={{ title: 'Goal progress' }} />
         <Stack.Screen name="progress-photos" options={{ title: 'Progress photos' }} />
+        <Stack.Screen name="assistant" options={{ presentation: 'fullScreenModal', headerShown: false }} />
         <Stack.Screen name="exercise-detail" options={{ title: 'Exercise progress' }} />
         <Stack.Screen name="recipe-editor" options={{ presentation: 'modal', title: 'Recipe' }} />
         <Stack.Screen name="photo-viewer" options={{ presentation: 'fullScreenModal', headerShown: false }} />

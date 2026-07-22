@@ -9,11 +9,12 @@ import type { Exercise, GeneratedProgram, Routine, RoutineDiff, WorkoutSession }
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { forwardRef, useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Text, useThemeColor, View } from '@/components/Themed';
 import { ProgramChat } from '@/components/workouts/ProgramChat';
+import { KeyboardSafeView } from '@/components/KeyboardSafeView';
 import { Button, Card, Chip, ChipRow, EmptyState, Input, Muted, SectionTitle } from '@/components/ui';
 import { confirmDelete } from '@/components/SwipeToDelete';
 import { Brand } from '@/constants/Colors';
@@ -287,7 +288,7 @@ export default function WorkoutsScreen() {
   const handleRoutineSheetDismiss = () => setRoutineEditing(null);
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardSafeView>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.topBar}>
           <View style={styles.segmented}>
@@ -549,7 +550,7 @@ export default function WorkoutsScreen() {
           />
         ) : null}
       </RoutineBottomSheet>
-    </KeyboardAvoidingView>
+    </KeyboardSafeView>
   );
 }
 

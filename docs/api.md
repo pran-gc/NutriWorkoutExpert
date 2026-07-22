@@ -60,6 +60,7 @@ Status: ✅ exists · 🔜 M1 (NWE-113/114) · 🚧 arrives with its feature sto
 |---|---|---|
 | 🔜 `GET /food-logs?date=` | 114 | day's entries + computed totals |
 | 🔜 `POST /food-logs` | 114 | manual or from-search entry (denormalized macros) |
+| ✅ `GET /food-logs/totals?date=` | 130 | macro totals plus ingredient-derived nullable micronutrients, partial flags, and approximate provenance |
 | 🔜 `PATCH /food-logs/:id` · `DELETE /food-logs/:id` | 114/205 | edit rescales macros server-side |
 | 🔜 `GET /foods/search?q=` | 114 | proxies Open Food Facts (normalized per-100g), caches hot queries |
 | ✅ `POST /foods/analyze-photo` | 508 | ephemeral photo → validated dish candidates + ingredients + quantities |
@@ -120,6 +121,23 @@ Status: ✅ exists · 🔜 M1 (NWE-113/114) · 🚧 arrives with its feature sto
 | ✅ `POST /insights/:id/apply-proposal` | 511 | explicitly applies an approved council target diff; refuses locked targets; stamps `applied_at` |
 | ✅ `DELETE /insights/:id` | 503/507 | deletes a generated insight/feedback row |
 
+### Agentic assistant
+| Method & path | Story | Notes |
+|---|---|---|
+| ✅ `POST /assistant/chat` | 122–132 | `{thread_id?, message}` → SSE (`thought`, `function_call`, `text`, `proposal`, `done`, `error`); `proposal` includes the resolved artifact for immediate inline-card rendering; read + proposal tool loop, daily quota |
+| ✅ `GET /assistant/threads` | 122 | newest-first thread summaries, maximum 50 |
+| ✅ `GET /assistant/threads/:id` | 122 | resume one owned thread with up to 200 persisted messages and tool traces |
+| ✅ `POST /assistant/proposals/:id/apply` | 124/128–132 | optional edited `{proposal}` snapshot; owned, revalidated, idempotent approval for program/meal/food/workout/recipe/target proposals |
+| ✅ `POST /assistant/proposals/:id/save-recipe` | 131 | independently saves a rich food proposal as a reusable recipe without logging it |
+| ✅ `POST /assistant/proposals/:id/dismiss` | 124 | stamps an owned proposal dismissed without changing or closing its thread |
+
+Assistant tool inputs are closed contracts. Every object—including nested program exercises,
+planned meals, food ingredients, nutrient values, workout sets, recipes, and target changes—has
+explicit properties and rejects undeclared keys. Genuine alternatives are declared as bounded
+unions rather than accepted as arbitrary objects. Gemini uses validated tool choice, and the API
+revalidates every call with the corresponding strict Zod schema before reading data or creating an
+approval-only proposal artifact.
+
 ## Hono app structure
 
 ```
@@ -130,7 +148,7 @@ supabase/functions/api/
     error.ts          # catch-all → error envelope, logging
   routes/
     health.ts  me.ts  weights.ts  food-logs.ts  foods.ts  workouts.ts
-    exercises.ts  routines.ts  insights.ts  gamification.ts  notifications.ts  cron.ts  water.ts ...
+    exercises.ts  routines.ts  insights.ts  assistant.ts  gamification.ts  notifications.ts  cron.ts  water.ts ...
   services/           # logic with I/O (db queries, gemini.ts, openfoodfacts.ts)
 ```
 
@@ -143,6 +161,7 @@ never import Node-only APIs.
 
 - **Open Food Facts** — proxied so the client never calls third parties; API sets a proper
   `User-Agent`, tolerates upstream flakiness (`UPSTREAM_ERROR`), and may cache popular queries.
-- **Gemini** — key lives in Edge Function secrets; only aggregates or ephemeral photos are sent
-  (never raw logs, never emails); every AI feature has a versioned prompt in the repo.
+- **Gemini** — key lives in Edge Function secrets. One-shot routes send aggregates or ephemeral
+  photos. The agentic assistant can pull capped, PII-free rows through RLS-scoped read tools;
+  emails and photos are unavailable and no tool can write. Prompts/instructions are versioned.
   See [ai.md](ai.md).

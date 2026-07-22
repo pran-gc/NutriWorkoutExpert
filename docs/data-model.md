@@ -41,7 +41,9 @@ erDiagram
     recipes ||--o{ recipe_items : "🚧202"
     profiles ||--o{ routines : "✅302"
     routines ||--o{ routine_exercises : "✅302"
-    profiles ||--o{ insights : "🚧502"
+    profiles ||--o{ insights : "✅502"
+    profiles ||--o{ assistant_threads : "✅122"
+    assistant_threads ||--o{ assistant_messages : "✅122"
     profiles ||--o{ measurements : "🚧403 later"
 ```
 
@@ -89,12 +91,38 @@ Reusable workout templates. `routine_exercises` stores ordered exercise IDs plus
 sets/reps; deleting a routine cascades template rows only. Past `workout_sessions.routine_id`
 is `on delete set null`, so history is never removed by template cleanup.
 
-### 🚧 insights (NWE-502)
-`user_id`, `kind` (`weekly`|`council`|`physique`|`training`|`nutrition`; migration `0005`
-adds `nutrition`), `week_start date` (weekly only, unique per user+week), `content` (markdown),
+### ✅ insights (NWE-502; extended by 121/122)
+`user_id`, `kind` (`weekly`|`council`|`physique`|`training`|`checkin`|`nutrition`|`assistant`;
+migrations `0005`/`0007` add the last two), `week_start date` (weekly only, unique per user+week), `content` (markdown),
 `payload jsonb` (AI drafts: program days for `training`, meal plan + refine thread for
 `nutrition`), `model`, `prompt_version`, `created_at`. **Never stores images** — physique rows
 hold text feedback only.
+
+### ✅ assistant_threads + assistant_messages (NWE-122)
+`assistant_threads` stores one owned conversation: `title`, Gemini `last_interaction_id`, and
+timestamps. `assistant_messages` stores owned user/assistant turns, a capped user-visible
+`tool_trace` (`name`, argument preview, latency, success), a `failed` flag, and an optional
+proposal link to `insights`. Both tables cascade with account/thread deletion, have RLS tied to
+`auth.uid()`, and are indexed for newest-thread and chronological-message reads. Gemini interaction
+continuity uses stored server-side state; local messages remain the app's durable conversation
+record.
+
+**Failed turns are still persisted.** If the loop breaks mid-stream, whatever it produced (partial
+text + tool trace) is written as an assistant message with `failed = true`, and
+`last_interaction_id` still advances. This keeps two invariants: a thread never holds a user
+message with no reply, and the next message never resumes Gemini from stale server-side state.
+The UI renders `failed` turns as "couldn't finish", not as normal assistant output.
+
+Proposal messages link `proposal_insight_id` to `insights(kind='assistant')`. The insight payload
+contains the shared-schema proposal and, after approval, its `apply_result`; the existing
+`applied_at` / `dismissed_at` columns are the durable idempotency and decision state. Thread reads
+join these proposal fields for inline cards without duplicating the artifact in message rows.
+Food proposal entries persist their per-ingredient bases, nullable micronutrients, and provenance
+in the existing `food_logs.ingredients` JSONB; daily micronutrient totals are derived on read and
+carry per-nutrient `partial` flags. Proposal payloads may also hold `recipe_result`,
+`supersedes_insight_id`, `superseded_by_insight_id`, and `dismiss_reason='superseded'`. No new
+columns are needed: lifecycle state remains in `applied_at`/`dismissed_at`, while the version links
+stay with the schema-versioned artifact.
 
 `profiles.coaching_profile` (jsonb) also carries the **dietary profile** (NWE-121): `dietary_style`
 (omnivore/vegetarian/vegan/pescatarian/halal/kosher/other), `allergies[]` (hard safety
@@ -105,7 +133,8 @@ constraint — never violated by the nutritionist), `disliked_foods[]`, `meals_p
 
 - **Photos** — on-device only (`expo-file-system`); DB stores at most a local filename.
 - **Raw third-party payloads** — Open Food Facts results are normalized at the API boundary.
-- **LLM inputs** — Gemini receives aggregates/ephemeral photos; only its text output is stored.
+- **LLM inputs** — one-shot features use aggregates/ephemeral photos. The Hub may send capped,
+  PII-free tool results (never emails/photos/other users); its text and transparency trace are stored.
 
 ## Migrations workflow (post NWE-110)
 

@@ -5,6 +5,8 @@ import { Hono } from 'hono';
 import {
   createFoodLogSchema,
   dayQuerySchema,
+  ingredientMicronutrientTotals,
+  proposalIngredientSchema,
   ok,
   rescaleMacros,
   updateFoodLogSchema,
@@ -33,7 +35,7 @@ export const foodLogsRoute = new Hono<Env>()
     const { date } = c.req.valid('query');
     const { data, error } = await db
       .from('food_logs')
-      .select('calories, protein_g, carbs_g, fat_g')
+      .select('calories, protein_g, carbs_g, fat_g, ingredients')
       .eq('user_id', user.id)
       .eq('logged_on', date);
     if (error) throw new HttpError('INTERNAL', 'Could not load totals.');
@@ -46,7 +48,14 @@ export const foodLogsRoute = new Hono<Env>()
       }),
       { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 }
     );
-    return c.json(ok(totals));
+    const ingredientRows = (data ?? []).flatMap((log) => Array.isArray(log.ingredients)
+      ? log.ingredients.map((value: unknown) => proposalIngredientSchema.safeParse(value)).filter((value) => value.success).map((value) => value.data)
+      : []);
+    const micronutrients = ingredientMicronutrientTotals(ingredientRows);
+    if ((data ?? []).some((log) => !Array.isArray(log.ingredients))) {
+      for (const key of Object.keys(micronutrients.partial) as (keyof typeof micronutrients.partial)[]) micronutrients.partial[key] = true;
+    }
+    return c.json(ok({ ...totals, micronutrients }));
   })
   .post('/', zval('json', createFoodLogSchema), async (c) => {
     const user = c.get('user');
