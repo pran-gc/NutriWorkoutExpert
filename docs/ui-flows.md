@@ -58,7 +58,7 @@ today's workout sessions, profile targets, streak (NWE-602).
 Top-to-bottom layout: greeting + date → **macro rings** (NWE-406: three concentric rings
 for protein/carbs/fat vs targets, largest target outermost, calories in the center,
 Apple-style overshoot marker; replaces the interim macro bars — protein `#dc2626`, carbs
-`#f59e0b`, fat `#3b82f6`, always with text labels, never color alone) → water bar (NWE-203)
+`#b45309`, fat `#3b82f6`, always with text labels, never color alone) → water bar (NWE-203)
 → weight card with trend chart (NWE-401: 30/90-day toggle, dots + 7-day moving average +
 dashed target line) → today's workouts. Pull-to-refresh; every tab refetches on focus.
 
@@ -208,6 +208,18 @@ Durations/easing defined as tokens once. Reduced-motion setting → static fallb
 never block input.
 
 ## Cross-cutting UX rules
+
+- **Liquid Glass (NWE-805):** material-bearing shared controls use `<Surface>` from
+  `lib/glass.tsx`; screens never import `GlassView`. Native Liquid Glass is limited to supported
+  iOS runtimes and automatically becomes an opaque themed surface on older iOS, Android, web, or
+  when Reduce Transparency is enabled. Use regular glass for floating cards/sheets and clear
+  glass for compact controls. Always provide a tint/scrim where content scrolls underneath and
+  maintain WCAG AA: 4.5:1 for body text, 3:1 for large text/control boundaries. Do not animate a
+  glass parent with opacity; the shared motion/accessibility gate disables glass animation when
+  Reduce Motion is enabled.
+- Not every primitive is a material: `Muted` is text hierarchy, `SectionTitle` is a heading,
+  `ProgressBar` is a clipped data visualization, and `ChipRow` is layout-only. They intentionally
+  remain non-glass and inherit their nearest surface.
 
 - Every screen must have a designed **empty state** (first-run) and **loading state**
   (no flash of wrong content while session/profile loads).

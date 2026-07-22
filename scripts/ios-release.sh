@@ -19,16 +19,9 @@ fi
 echo "▸ Regenerating the native iOS project from app.json (bundle id, permissions)…"
 npx expo prebuild --platform ios --clean
 
-# Free-tier Apple teams can't provision Push Notifications, which blocks signing.
-# Strip the push entitlement unless EXPO_ENABLE_PUSH=1 (set that once you enroll in
-# the paid Apple Developer Program — then push works normally).
-if [[ "${EXPO_ENABLE_PUSH:-0}" != "1" ]]; then
-  ENT=$(find ios -name "*.entitlements" -not -path "*/Pods/*" | head -1)
-  if [[ -n "$ENT" ]] && /usr/bin/plutil -extract aps-environment raw "$ENT" >/dev/null 2>&1; then
-    /usr/bin/plutil -remove aps-environment "$ENT"
-    echo "▸ Removed push entitlement (free-tier build). Set EXPO_ENABLE_PUSH=1 after enrolling to keep it."
-  fi
-fi
+# Free-tier Apple teams cannot provision APNs. Keep the entitlement opt-in until
+# the paid Apple capability and regenerated profile are ready.
+bash scripts/disable-ios-push.sh
 
 echo "▸ Confirming the production backend is wired in .env.production:"
 grep EXPO_PUBLIC_SUPABASE_URL .env.production

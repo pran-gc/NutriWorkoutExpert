@@ -1224,7 +1224,7 @@ One shared animation layer so every win feels consistent — used by ring closes
 3. Accent-color audit across screens (one green, one destructive red, macro colors consistent).
 4. User sign-off on the visual identity noted here.
 
-### NWE-805 · Liquid Glass adoption (iOS 26 design language) — `[ ]` · O
+### NWE-805 · Liquid Glass adoption (iOS 26 design language) — `[~]` · O
 
 **Context — separate the two things Apple actually requires** (verified 2026-07-22):
 - **Building with the iOS 26 SDK / Xcode 26 is mandatory** for any App Store Connect upload from
@@ -1307,6 +1307,29 @@ animations; changing the accent identity (that is NWE-801). This story changes *
 **Depends on:** NWE-801 (accent identity settled first, so the contrast audit is not redone).
 **Blocks:** NWE-802 only if the 28 April SDK deadline is in play at build time.
 
+**Implementation notes (2026-07-22):** capability/accessibility gating is centralized in
+`lib/glass.tsx`; `Surface` backs Card/Button/Chip/Input/OptionRow/EmptyState, the assistant FAB,
+and both gorhom sheet backgrounds. Native tabs retain all five labels, SF Symbols, Material
+symbols, accessibility labels, and the green tint. CI rejects direct `expo-glass-effect` imports.
+The opaque fallback is used for Reduce Transparency, unsupported platforms, and while OS settings
+load; Reduce Motion disables style animation and interactivity. Existing app tests pass unmodified
+(plus focused capability/fallback tests).
+
+Contrast measurements (sRGB): accent `#16a34a` is 3.30:1 on white / 6.37:1 on black (passes the
+3:1 control threshold); destructive `#dc2626` is 4.83:1 / 4.35:1 (passes controls; themed body-text
+tokens are used where 4.5:1 is required). Macro strokes: protein 4.83:1 / 4.35:1, carbs `#b45309`
+5.02:1 / 4.18:1, fat 3.68:1 / 5.71:1 — all pass the 3:1 non-text/control threshold. The original
+amber carb token was 2.15:1 on white and was darkened. Neutral regular-glass tints use an opaque
+fallback/scrim so primary text remains readable over dense scrolling content.
+
+Automated/build evidence: Xcode 26.5 + iOS 26.5 SDK present; a clean Expo prebuild and native
+build succeeded, installed, and launched on the iPhone 17 Pro / iOS 26.5 simulator; no
+`UIDesignRequiresCompatibility` flag; TypeScript, import guard, and 40 app suites / 78 tests pass.
+Manual evidence still required before `[x]`: screenshots of Workouts, Food, and a long assistant
+thread on the installed iOS 26.5 and iOS 18.5 runtimes, Reduce Transparency/Reduce Motion checks,
+and the same three Android screenshots. No Android SDK/emulator is installed on this machine, so
+AC-6/7/8 cannot honestly be signed off in this implementation session.
+
 ### NWE-802 · TestFlight via EAS — `[ ]` · S
 **Acceptance criteria:**
 1. EAS project configured; `eas.json` with development / preview / production profiles.
@@ -1345,6 +1368,12 @@ it is sequenced last, after the Hub has proven the pattern in production.
 ## Discovered work
 
 *(agents: append findings here instead of expanding story scope)*
+
+- 2026-07-22 (NWE-805 verification): `npx expo-doctor` passes 19/20 checks but reports existing
+  Expo patch-version drift (`expo` and several SDK packages are behind the SDK 57 recommended
+  patches, and `@types/jest` is 30.x instead of the expected 29.5.x). The NWE-805 iOS 26 native
+  build and all app tests pass, so dependency-wide upgrades were left for a dedicated maintenance
+  story rather than mixed into the Liquid Glass material refactor.
 
 - 2026-07-22 (AI workout review): the existing `exercises` table is the correct UUID-backed
   canonical directory, but its global starter catalogue is only ~55 rows and has no explicit

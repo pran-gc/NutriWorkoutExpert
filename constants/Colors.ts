@@ -10,7 +10,8 @@ export const Brand = {
   destructive: '#dc2626', // delete / sign-out
   // Macro colors (also protein == destructive red by design)
   protein: '#dc2626',
-  carbs: '#f59e0b',
+  // Darkened from amber-500 so chart strokes clear 3:1 on both white and black.
+  carbs: '#b45309',
   fat: '#3b82f6',
   water: '#3b82f6',
 } as const;
@@ -27,6 +28,10 @@ export default {
     inputPlaceholder: '#9ca3af',
     inputBorder: '#c7c7cc',
     inputBackground: 'rgba(0,0,0,0.02)',
+    surface: '#f5f5f7',
+    glassTint: 'rgba(245,245,247,0.78)',
+    accentText: '#15803d',
+    destructiveText: '#b91c1c',
   },
   dark: {
     text: '#fff',
@@ -38,5 +43,9 @@ export default {
     inputPlaceholder: '#8e8e93',
     inputBorder: '#48484a',
     inputBackground: 'rgba(255,255,255,0.04)',
+    surface: '#121214',
+    glassTint: 'rgba(18,18,20,0.82)',
+    accentText: '#4ade80',
+    destructiveText: '#ff6961',
   },
 };

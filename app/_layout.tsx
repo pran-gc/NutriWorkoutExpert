@@ -18,6 +18,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { initAuthDeepLinks } from '@/lib/authDeepLink';
 import { hasOnboardingCompletedLocally } from '@/lib/onboardingState';
 import { queryClient } from '@/lib/queryClient';
+import { GlassProvider } from '@/lib/glass';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -66,11 +67,13 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <QueryClientProvider client={queryClient}>
-          <BottomSheetModalProvider>
-            <SessionProvider>
-              <RootLayoutNav />
-            </SessionProvider>
-          </BottomSheetModalProvider>
+          <GlassProvider>
+            <BottomSheetModalProvider>
+              <SessionProvider>
+                <RootLayoutNav />
+              </SessionProvider>
+            </BottomSheetModalProvider>
+          </GlassProvider>
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

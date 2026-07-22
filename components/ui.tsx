@@ -3,12 +3,15 @@ import {
   Pressable,
   StyleSheet,
   TextInput,
+  type StyleProp,
   type PressableProps,
   type TextInputProps,
+  type ViewStyle,
 } from 'react-native';
 
 import { Text, View, useThemeColor } from '@/components/Themed';
 import { Brand } from '@/constants/Colors';
+import { Surface } from '@/lib/glass';
 
 export { SwipeToDelete } from '@/components/SwipeToDelete';
 
@@ -18,12 +21,9 @@ export { SwipeToDelete } from '@/components/SwipeToDelete';
 
 export function Card({ children, style }: { children: React.ReactNode; style?: object }) {
   return (
-    <View
-      style={[styles.card, style]}
-      lightColor="rgba(0,0,0,0.04)"
-      darkColor="rgba(255,255,255,0.07)">
+    <Surface style={[styles.card, style]}>
       {children}
-    </View>
+    </Surface>
   );
 }
 
@@ -43,14 +43,18 @@ export const Input = forwardRef<TextInput, TextInputProps>(function Input(
   const color = useThemeColor({}, 'inputText');
   const placeholderColor = useThemeColor({}, 'inputPlaceholder');
   const borderColor = useThemeColor({}, 'inputBorder');
-  const backgroundColor = useThemeColor({}, 'inputBackground');
   return (
-    <TextInput
-      ref={ref}
-      style={[styles.input, { color, borderColor, backgroundColor }, style]}
-      placeholderTextColor={placeholderColor}
-      {...props}
-    />
+    <Surface
+      // TextInput layout styles (flex/width/margins) also position its glass shell.
+      style={[styles.inputSurface, { borderColor }, style as StyleProp<ViewStyle>]}
+      glassEffectStyle="clear">
+      <TextInput
+        ref={ref}
+        style={[styles.inputControl, { color }, style]}
+        placeholderTextColor={placeholderColor}
+        {...props}
+      />
+    </Surface>
   );
 });
 
@@ -78,10 +82,16 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
-      style={[styles.button, { backgroundColor: bg }, (disabled || loading) && styles.buttonDisabled, style]}
+      style={[styles.button, (disabled || loading) && styles.buttonDisabled, style]}
       onPress={onPress}
       disabled={disabled || loading}
       {...rest}>
+      <Surface
+        fallbackColor={bg}
+        tintColor={bg}
+        isInteractive
+        style={StyleSheet.absoluteFill}
+      />
       <Text style={styles.buttonText}>{loading ? 'Working…' : title}</Text>
     </Pressable>
   );
@@ -100,13 +110,21 @@ export function Chip({
   active: boolean;
   onPress: () => void;
 }) {
+  const accentText = useThemeColor({}, 'accentText');
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
-      style={[styles.chip, active && styles.chipActive]}
+      style={styles.chip}
       onPress={onPress}>
-      <Text style={active ? styles.chipTextActive : styles.chipText}>{label}</Text>
+      <Surface
+        fallbackColor={active ? Brand.accent : undefined}
+        tintColor={active ? Brand.accent : undefined}
+        glassEffectStyle="clear"
+        isInteractive
+        style={StyleSheet.absoluteFill}
+      />
+      <Text style={active ? styles.chipTextActive : [styles.chipText, { color: accentText }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -132,8 +150,15 @@ export function OptionRow({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
-      style={[styles.optionRow, active && styles.optionRowActive]}
+      style={styles.optionRow}
       onPress={onPress}>
+      <Surface
+        fallbackColor={active ? Brand.accent : undefined}
+        tintColor={active ? Brand.accent : undefined}
+        glassEffectStyle="clear"
+        isInteractive
+        style={StyleSheet.absoluteFill}
+      />
       <Text style={active ? styles.optionTextActive : undefined}>{label}</Text>
     </Pressable>
   );
@@ -148,7 +173,7 @@ export function Muted({ children, style }: { children: React.ReactNode; style?: 
 }
 
 export function EmptyState({ text }: { text: string }) {
-  return <Muted style={styles.centered}>{text}</Muted>;
+  return <Surface style={styles.emptyState}><Muted style={styles.centered}>{text}</Muted></Surface>;
 }
 
 // ---------------------------------------------------------------------------
@@ -186,18 +211,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 8,
   },
-  input: {
+  inputSurface: {
     borderWidth: 1,
     borderRadius: 10,
+    overflow: 'hidden',
+  },
+  inputControl: {
+    minHeight: 44,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
+    backgroundColor: 'transparent',
   },
   button: {
     borderRadius: 10,
     paddingHorizontal: 18,
     paddingVertical: 13,
     alignItems: 'center',
+    overflow: 'hidden',
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -219,13 +250,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
-  },
-  chipActive: {
-    backgroundColor: Brand.accent,
+    overflow: 'hidden',
   },
   chipText: {
     fontSize: 14,
-    color: Brand.accent,
   },
   chipTextActive: {
     fontSize: 14,
@@ -235,10 +263,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 10,
     borderRadius: 8,
-    backgroundColor: 'transparent',
-  },
-  optionRowActive: {
-    backgroundColor: Brand.accent,
+    overflow: 'hidden',
   },
   optionTextActive: {
     color: '#fff',
@@ -250,6 +275,10 @@ const styles = StyleSheet.create({
   },
   centered: {
     textAlign: 'center',
+  },
+  emptyState: {
+    borderRadius: 14,
+    padding: 16,
     marginTop: 16,
   },
   track: {

@@ -18,6 +18,7 @@ import { KeyboardSafeView } from '@/components/KeyboardSafeView';
 import { Button, Card, Chip, ChipRow, EmptyState, Input, Muted, SectionTitle } from '@/components/ui';
 import { confirmDelete } from '@/components/SwipeToDelete';
 import { Brand } from '@/constants/Colors';
+import { GlassSheetBackground } from '@/lib/glass';
 import {
   useCreateExercise,
   useCreateRoutine,
@@ -560,7 +561,6 @@ const RoutineBottomSheet = forwardRef<BottomSheetModal, {
 }>(function RoutineBottomSheet({ onDismiss, children }, ref) {
   const snapPoints = useMemo(() => ['72%', '90%'], []);
   const insets = useSafeAreaInsets();
-  const sheetBackgroundColor = useThemeColor({}, 'background');
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
       <BottomSheetBackdrop
@@ -584,7 +584,7 @@ const RoutineBottomSheet = forwardRef<BottomSheetModal, {
       topInset={insets.top + 12}
       bottomInset={insets.bottom}
       backdropComponent={renderBackdrop}
-      backgroundStyle={[styles.sheetBackground, { backgroundColor: sheetBackgroundColor }]}
+      backgroundComponent={GlassSheetBackground}
       handleStyle={styles.sheetHandleArea}
       handleIndicatorStyle={styles.sheetHandle}
       keyboardBehavior="interactive"
@@ -1126,10 +1126,6 @@ const styles = StyleSheet.create({
   inlineButton: { paddingHorizontal: 10, paddingVertical: 7 },
   exercisePill: { borderWidth: 1, borderColor: Brand.accent, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, marginRight: 6 },
   pillText: { color: Brand.accent, fontSize: 13 },
-  sheetBackground: {
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-  },
   sheetHandleArea: {
     paddingTop: 10,
     paddingBottom: 4,

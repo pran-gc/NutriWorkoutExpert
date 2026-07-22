@@ -82,6 +82,11 @@ sign-in + 2FA in its GUI. Build shows up in App Store Connect → TestFlight in 
 
 Requires: Xcode signed into your Apple Developer account (Xcode → Settings → Accounts).
 
+Local development builds use `npm run ios`, which strips the APNs entitlement for free-team
+signing after any clean prebuild. Once Push Notifications is enabled for the App ID and its
+provisioning profile has been regenerated, use `EXPO_ENABLE_PUSH=1 npm run ios -- --device` to
+retain the entitlement instead.
+
 ### Option B — EAS cloud build (fallback / CI) **[you: login, then agent-ok]**
 ```bash
 eas login

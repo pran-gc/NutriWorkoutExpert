@@ -23,6 +23,8 @@ jobs:
         run: npm run typecheck
       - name: App guard — no direct DB access
         run: npm run check:no-supabase-from
+      - name: UI guard — glass only through Surface
+        run: npm run check:glass-imports
       - name: Unit tests — shared domain (Vitest)
         run: npm run test:shared
       - name: Unit tests — app components (jest-expo)

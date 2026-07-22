@@ -15,6 +15,7 @@
     "expo": "~57.0.2",
     "expo-constants": "~57.0.3",
     "expo-font": "~57.0.0",
+    "expo-glass-effect": "~57.0.1",
     "expo-haptics": "~57.0.0",
     "expo-image-picker": "~57.0.2",
     "expo-linking": "~57.0.1",
@@ -49,13 +50,14 @@
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
-    "ios": "expo run:ios",
+    "ios": "bash scripts/ios-local.sh",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:shared": "npm test -w @nwe/shared",
     "test:api": "deno test --config supabase/functions/deno.json --allow-env --allow-net supabase/functions/api/",
-    "check:no-supabase-from": "bash scripts/check-no-supabase-from.sh"
+    "check:no-supabase-from": "bash scripts/check-no-supabase-from.sh",
+    "check:glass-imports": "bash scripts/check-glass-imports.sh"
   },
   "jest": {
     "preset": "jest-expo",

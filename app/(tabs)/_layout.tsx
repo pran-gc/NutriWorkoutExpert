@@ -1,99 +1,36 @@
-import { SymbolView } from 'expo-symbols';
-import { Tabs } from 'expo-router';
+import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { AssistantFab } from '@/components/assistant/AssistantFab';
+import { Brand } from '@/constants/Colors';
+
+const tabs = [
+  { name: 'index', label: 'Today', accessibilityLabel: 'Today tab', sf: { default: 'chart.bar', selected: 'chart.bar.fill' }, md: { default: 'monitoring', selected: 'monitoring' } },
+  { name: 'food', label: 'Food', accessibilityLabel: 'Food tab', sf: { default: 'fork.knife', selected: 'fork.knife' }, md: { default: 'restaurant', selected: 'restaurant' } },
+  { name: 'workouts', label: 'Workouts', accessibilityLabel: 'Workouts tab', sf: { default: 'figure.strengthtraining.traditional', selected: 'figure.strengthtraining.traditional' }, md: { default: 'fitness_center', selected: 'fitness_center' } },
+  { name: 'insights', label: 'Insights', accessibilityLabel: 'Insights tab', sf: { default: 'sparkles', selected: 'sparkles' }, md: { default: 'auto_awesome', selected: 'auto_awesome' } },
+  { name: 'profile', label: 'Profile', accessibilityLabel: 'Profile tab', sf: { default: 'person', selected: 'person.fill' }, md: { default: 'person', selected: 'person' } },
+] as const;
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <>
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme].tint,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
-        headerShown: useClientOnlyValue(false, true),
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Today',
-          tabBarAccessibilityLabel: 'Today tab',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{ ios: 'chart.bar.fill', android: 'monitoring', web: 'monitoring' }}
-              tintColor={color}
-              size={28}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="food"
-        options={{
-          title: 'Food',
-          tabBarAccessibilityLabel: 'Food tab',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{ ios: 'fork.knife', android: 'restaurant', web: 'restaurant' }}
-              tintColor={color}
-              size={28}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="workouts"
-        options={{
-          title: 'Workouts',
-          tabBarAccessibilityLabel: 'Workouts tab',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: 'figure.strengthtraining.traditional',
-                android: 'fitness_center',
-                web: 'fitness_center',
-              }}
-              tintColor={color}
-              size={28}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="insights"
-        options={{
-          title: 'Insights',
-          tabBarAccessibilityLabel: 'Insights tab',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{ ios: 'sparkles', android: 'auto_awesome', web: 'auto_awesome' }}
-              tintColor={color}
-              size={28}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarAccessibilityLabel: 'Profile tab',
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{ ios: 'person.fill', android: 'person', web: 'person' }}
-              tintColor={color}
-              size={28}
-            />
-          ),
-        }}
-      />
-    </Tabs>
-    <AssistantFab />
+      <NativeTabs
+        tintColor={Brand.accent}
+        backBehavior="history"
+        labelVisibilityMode="labeled"
+        tabBarRespectsIMEInsets
+        disableTransparentOnScrollEdge>
+        {tabs.map((tab) => (
+          <NativeTabs.Trigger
+            key={tab.name}
+            name={tab.name}
+            unstable_nativeProps={{ tabBarItemAccessibilityLabel: tab.accessibilityLabel }}>
+            <NativeTabs.Trigger.Icon sf={{ ...tab.sf }} md={{ ...tab.md }} />
+            <NativeTabs.Trigger.Label>{tab.label}</NativeTabs.Trigger.Label>
+          </NativeTabs.Trigger>
+        ))}
+      </NativeTabs>
+      <AssistantFab />
     </>
   );
 }

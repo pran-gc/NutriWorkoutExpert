@@ -11,6 +11,7 @@ import {
 import { Text, View, useThemeColor } from '@/components/Themed';
 import { Button, Card, Chip, ChipRow, Muted } from '@/components/ui';
 import { Brand } from '@/constants/Colors';
+import { GlassSheetBackground } from '@/lib/glass';
 import {
   useApplyAssistantProposal, useProfile, useResolveFood, useSaveAssistantProposalRecipe,
 } from '@/lib/hooks';
@@ -249,7 +250,6 @@ export function ProposalCard({ state }: { state: AssistantProposalState }) {
   const [validation, setValidation] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-  const backgroundColor = useThemeColor({}, 'background');
   const textColor = useThemeColor({}, 'text');
   const snapPoints = useMemo(() => ['65%', '95%'], []);
   const applied = Boolean(state.applied_at || apply.isSuccess);
@@ -280,7 +280,7 @@ export function ProposalCard({ state }: { state: AssistantProposalState }) {
       <SafeAreaProvider>
       <SafeAreaView style={styles.modalRoot} edges={['top', 'right', 'bottom', 'left']}>
         <Pressable accessibilityRole="button" accessibilityLabel="Close proposal review" onPress={closeSheet} style={styles.backdrop} />
-        <BottomSheet index={0} snapPoints={snapPoints} enablePanDownToClose keyboardBehavior="interactive" android_keyboardInputMode="adjustResize" onClose={closeSheet} backgroundStyle={{ backgroundColor }} handleIndicatorStyle={{ backgroundColor: textColor }}>
+        <BottomSheet index={0} snapPoints={snapPoints} enablePanDownToClose keyboardBehavior="interactive" android_keyboardInputMode="adjustResize" onClose={closeSheet} backgroundComponent={GlassSheetBackground} handleIndicatorStyle={{ backgroundColor: textColor }}>
           <BottomSheetScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.sheet}>
         <View style={styles.sheetHeading}><Text style={styles.sheetTitle}>{draft.title}</Text>{editable && <Pressable accessibilityRole="button" accessibilityLabel={editing ? 'Finish editing proposal' : 'Edit proposal'} onPress={() => setEditing((value) => !value)} hitSlop={8} style={styles.editAction}><Text style={styles.link}>{editing ? 'Done' : 'Edit'}</Text></Pressable>}</View>
         {editing ? draft.kind === 'food_logs' ? <FoodEditor value={draft} onChange={setDraft} /> : draft.kind === 'workout_log' ? <WorkoutEditor value={draft} onChange={setDraft} /> : draft.kind === 'recipe' ? <RecipeEditor value={draft} onChange={setDraft} /> : null
