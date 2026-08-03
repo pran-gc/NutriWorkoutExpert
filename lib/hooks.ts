@@ -45,7 +45,14 @@ import type {
   AssistantThreadSummary,
   AssistantProposal,
   ingredientMicronutrientTotals,
+  goalProjection,
 } from '@shared';
+
+/** Response shape of GET /analytics/goal (see routes/analytics.ts). */
+interface GoalAnalytics {
+  projection: ReturnType<typeof goalProjection>;
+  weights: WeightLog[];
+}
 
 import { useSession } from '@/components/SessionProvider';
 import { rpc, unwrap } from '@/lib/api';
@@ -452,7 +459,7 @@ export function useGoalAnalytics() {
   const hasSession = useHasSession();
   return useQuery({
     queryKey: ['analytics', 'goal'],
-    queryFn: () => unwrap<any>(rpc.api.analytics.goal.$get()),
+    queryFn: () => unwrap<GoalAnalytics>(rpc.api.analytics.goal.$get()),
     enabled: hasSession,
   });
 }

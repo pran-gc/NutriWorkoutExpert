@@ -58,8 +58,21 @@ jobs:
         run: supabase db reset
       - name: API integration tests
         run: |
+          # Extract keys from JSON (robust across CLI versions — the older
+          # `grep ANON_KEY` on -o env output was fragile). The integration
+          # helpers build a service-role admin client at import time, so
+          # SUPABASE_SERVICE_ROLE_KEY is REQUIRED, not just the anon key —
+          # omitting it throws "supabaseKey is required" before any test runs.
+          status_json="$(supabase status -o json)"
           export SUPABASE_URL="http://127.0.0.1:54321"
-          export SUPABASE_ANON_KEY="$(supabase status -o env | grep ANON_KEY | cut -d= -f2 | tr -d '\"')"
+          export SUPABASE_ANON_KEY="$(echo "$status_json" | jq -r '.ANON_KEY')"
+          export SUPABASE_SERVICE_ROLE_KEY="$(echo "$status_json" | jq -r '.SERVICE_ROLE_KEY')"
+          if [ -z "$SUPABASE_ANON_KEY" ] || [ "$SUPABASE_ANON_KEY" = "null" ] \
+             || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ "$SUPABASE_SERVICE_ROLE_KEY" = "null" ]; then
+            echo "::error::Could not extract Supabase keys from 'supabase status -o json'."
+            echo "$status_json"
+            exit 1
+          fi
           npm run test:api
       - name: Stop stack
         if: always()

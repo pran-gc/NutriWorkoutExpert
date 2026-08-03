@@ -39,7 +39,7 @@ export default function GoalAnalyticsScreen() {
       <SectionTitle>Adherence ↔ progress</SectionTitle>
       <Card>
         {weights.length ? (
-          <LineChart points={weights.map((w: any) => ({ logged_on: w.logged_on, value: w.weight_kg }))} color={Brand.accent} />
+          <LineChart points={weights.map((w) => ({ logged_on: w.logged_on, value: w.weight_kg }))} color={Brand.accent} />
         ) : (
           <Muted>No weight logs yet.</Muted>
         )}

@@ -16,8 +16,24 @@ export default function PhotoViewer() {
     logId: string;
     date: string;
   }>();
-  const updateLog = useUpdateFoodLog(date ?? '');
+  // `date` scopes which day's food-logs query gets invalidated after a delete.
+  // It's a required route param — an empty-string fallback would invalidate the
+  // wrong key (['food-logs', '']) and hide a broken navigation, so require it.
+  const updateLog = useUpdateFoodLog(date);
   const uri = localPhotoUri(filename);
+
+  if (!date) {
+    return (
+      <View style={styles.container} lightColor="#000" darkColor="#000">
+        <View style={styles.footer} lightColor="transparent" darkColor="transparent">
+          <Muted style={styles.note}>Couldn’t open this photo.</Muted>
+          <Pressable style={styles.close} onPress={() => router.back()}>
+            <Text style={styles.closeText}>Close</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   const removePhoto = () => {
     Alert.alert('Delete photo?', 'Remove this photo from the entry?', [
