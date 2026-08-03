@@ -1,7 +1,7 @@
 import { sharedGreeting, todayISO } from '@shared';
 import { useEffect, useMemo, useRef } from 'react';
 import { RefreshControl, ScrollView, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 
 import { LineChart, MacroRings } from '@/components/analytics';
 import { AnimatedCheck, CountUpText, PulseRing } from '@/components/motion';
@@ -80,7 +80,7 @@ export default function DashboardScreen() {
           carbsTarget={profile?.carbs_target_g ?? null}
           fat={totals.fat_g}
           fatTarget={profile?.fat_target_g ?? null}
-          onSetTargets={() => router.push('/(tabs)/profile')}
+          onSetTargets={() => router.push('/(tabs)/profile' as Href)}
         />
       </Card>
 

@@ -12,7 +12,7 @@ import { forwardRef, useCallback, useMemo, useRef, useState, type ReactNode } fr
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Text, useThemeColor, View } from '@/components/Themed';
+import { Text, View } from '@/components/Themed';
 import { ProgramChat } from '@/components/workouts/ProgramChat';
 import { KeyboardSafeView } from '@/components/KeyboardSafeView';
 import { Button, Card, Chip, ChipRow, EmptyState, Input, Muted, SectionTitle } from '@/components/ui';

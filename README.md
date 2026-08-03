@@ -133,6 +133,10 @@ runners are costly, so they're kept out of the pipeline by decision.
   `pg_dump` (Sundays) and keeps the dump as a 30-day artifact. Needs `SUPABASE_DB_URL`.
 - **Free-tier pause** — projects idle for 7 days are paused; resume from the Supabase dashboard
   (data is retained).
+- **Auth email** — signup confirmation + password reset are sent via **Emailit SMTP** from
+  `no-reply@omupra.com`, deep-linking back to `nutriworkoutexpert://`. Setup (Emailit domain
+  verification, Supabase SMTP + redirect URLs) is dashboard/DNS work — see
+  [docs/auth-email-setup.md](docs/auth-email-setup.md).
 
 ## Documentation
 

@@ -197,8 +197,12 @@ The initial scaffold (auth, 4 tabs, schema) was drafted in one pass and never re
 > files per environment; `.github/workflows/deploy.yml` pushes migrations + deploys the `api`
 > function on push to main (fails loudly); rollback procedure documented; weekly `pg_dump`
 > export (`.github/workflows/backup.yml`, 30-day artifact retention) + free-tier pause note.
-> **Pending: user adds repo secrets (`SUPABASE_ACCESS_TOKEN`/`PROJECT_REF`/`DB_PASSWORD`/
-> `DB_URL`) and confirms a real deploy + backup run.**
+> Update (2026-08-03): first real hosted deploy verified manually via `supabase functions
+> deploy api` + `supabase db push` — hosted `/functions/v1/api/health` returns 200, migrations
+> 0001–0007 in sync (no drift). App `.env` switched to the hosted project. Auth email set up
+> via Emailit SMTP (`no-reply@omupra.com`, confirmations ON) — see docs/auth-email-setup.md.
+> **Still pending: user adds GitHub repo secrets (`SUPABASE_ACCESS_TOKEN`/`PROJECT_REF`/
+> `DB_PASSWORD`/`DB_URL`) so the CI deploy + backup workflows run green; confirm a backup run.**
 **Acceptance criteria:**
 1. Two environments documented: local (CLI/Docker, for dev + tests) and hosted (real app); env files per environment.
 2. GitHub Action deploys migrations + functions to the hosted project on push to `main` (Supabase access token as repo secret); failed deploys fail visibly.

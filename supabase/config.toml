@@ -143,9 +143,11 @@ max_catalogs = 2
 # Analytics Buckets is available to Supabase Pro plan.
 # [storage.analytics.buckets.my-warehouse]
 
-# Store vector embeddings in S3 for large and durable datasets
+# Store vector embeddings in S3 for large and durable datasets.
+# Disabled: it's a Pro-plan feature (config push 402s on free tier) and unused —
+# the app stores no vectors and keeps photos on-device only.
 [storage.vector]
-enabled = true
+enabled = false
 max_buckets = 10
 max_indexes = 5
 
@@ -224,7 +226,9 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+# ON so hosted testers must verify their email. Local integration tests are unaffected —
+# they create pre-confirmed users via admin.createUser({ email_confirm: true }).
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
@@ -234,15 +238,20 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
-# [auth.email.smtp]
-# enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# Production-ready SMTP via Emailit (sending domain: omupra.com).
+# NOTE: The authoritative config for the HOSTED project is set in the Supabase
+# dashboard (Auth → Emails → SMTP). This block documents the same values and lets
+# local `supabase start` send real email if EMAILIT_SMTP_PASSWORD is exported.
+# For Emailit, the SMTP password IS your Emailit API key; user is the literal "emailit".
+# Never commit the key — it's injected via env(EMAILIT_API_KEY) at push/start time.
+[auth.email.smtp]
+enabled = true
+host = "smtp.emailit.com"
+port = 587
+user = "emailit"
+pass = "env(EMAILIT_API_KEY)"
+admin_email = "no-reply@omupra.com"
+sender_name = "PGC Creations"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]

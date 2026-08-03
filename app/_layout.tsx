@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments, type Href } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -138,9 +138,9 @@ function RootLayoutNav() {
     if (!session && !inAuthGroup) {
       router.replace('/(auth)/sign-in');
     } else if (session && inAuthGroup) {
-      router.replace('/(tabs)');
+      router.replace('/(tabs)' as Href);
     } else if (session && !profileIncomplete && inOnboarding) {
-      router.replace('/(tabs)');
+      router.replace('/(tabs)' as Href);
     } else if (session && profileIncomplete && !inOnboarding) {
       // Signed in but never set up → the wizard (skippable from within).
       router.replace('/(onboarding)');

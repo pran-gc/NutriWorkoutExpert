@@ -1,7 +1,7 @@
 // Set-new-password screen — the target of the password-reset deep link (NWE-117).
 // Supabase's emailed link opens the app with a recovery session already
 // established; we just collect and set the new password.
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useState } from 'react';
 import { Alert, StyleSheet } from 'react-native';
 
@@ -27,7 +27,7 @@ export default function ResetPasswordScreen() {
         return;
       }
       Alert.alert('Password updated', 'You can now sign in with your new password.');
-      router.replace('/(tabs)');
+      router.replace('/(tabs)' as Href);
     } finally {
       setBusy(false);
     }

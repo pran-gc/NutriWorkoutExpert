@@ -3,7 +3,7 @@ import type { ActivityLevel, CoachingProfile, GoalType, Sex } from '@shared';
 
 type DietaryStyle = NonNullable<CoachingProfile['dietary_style']>;
 const DIETARY_STYLES: DietaryStyle[] = ['omnivore', 'vegetarian', 'vegan', 'pescatarian', 'halal', 'kosher', 'other'];
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet } from 'react-native';
 
@@ -57,7 +57,7 @@ export default function OnboardingWizard() {
     } catch {
       // Non-fatal — the guard also completes onboarding once stats exist server-side.
     }
-    router.replace('/(tabs)');
+    router.replace('/(tabs)' as Href);
   };
 
   // Save profile + first weight, compute targets, then advance to the preview.
