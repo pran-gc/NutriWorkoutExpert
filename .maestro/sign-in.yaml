@@ -1,0 +1,14 @@
+# Maestro E2E — launch → sign-in screen visible (NWE-111 AC#3).
+# Mac-only: runs on the iOS simulator against an installed, running dev build.
+#   maestro test .maestro/sign-in.yaml
+appId: com.anonymous.NutriWorkoutExpert
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    text: 'Open'
+    optional: true
+- assertVisible: 'NutriWorkoutExpert'
+- assertVisible: 'Email'
+- assertVisible: 'Password'
+- assertVisible: 'Sign in'

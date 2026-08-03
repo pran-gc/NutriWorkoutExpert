@@ -1,32 +1,43 @@
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-} from 'react-native';
+import { ACTIVITY_LABELS, GOAL_LABELS, todayISO } from '@shared';
+import type { ActivityLevel, CoachingProfile, GoalType, Sex } from '@shared';
+
+type DietaryStyle = NonNullable<CoachingProfile['dietary_style']>;
+type CookTimePref = NonNullable<CoachingProfile['cook_time_pref']>;
+const DIETARY_STYLES: DietaryStyle[] = ['omnivore', 'vegetarian', 'vegan', 'pescatarian', 'halal', 'kosher', 'other'];
+const COOK_TIME_PREFS: CookTimePref[] = ['quick', 'moderate', 'any'];
+import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Alert, Pressable, ScrollView, Share, StyleSheet } from 'react-native';
 
 import { useSession } from '@/components/SessionProvider';
+import { KeyboardSafeView } from '@/components/KeyboardSafeView';
 import { Text, View } from '@/components/Themed';
-import { Card, SectionTitle } from '@/components/ui';
 import {
-  ACTIVITY_LABELS,
-  GOAL_LABELS,
-  computeTargets,
-  todayISO,
-} from '@/lib/nutrition';
+  Button,
+  Card,
+  Chip,
+  ChipRow,
+  Input,
+  Muted,
+  OptionRow,
+  SectionTitle,
+} from '@/components/ui';
+import { Brand } from '@/constants/Colors';
 import { supabase } from '@/lib/supabase';
-import type { ActivityLevel, GoalType, Sex, WeightLog } from '@/lib/types';
+import {
+  useChangePassword,
+  useExportData,
+  useLatestWeight,
+  useUpdateProfile,
+  useUpsertWeight,
+} from '@/lib/hooks';
 
 const ACTIVITIES = Object.keys(ACTIVITY_LABELS) as ActivityLevel[];
 const GOALS = Object.keys(GOAL_LABELS) as GoalType[];
 
 export default function ProfileScreen() {
-  const { session, profile, refreshProfile } = useSession();
+  const { profile, refreshProfile } = useSession();
+  const router = useRouter();
 
   const [displayName, setDisplayName] = useState('');
   const [sex, setSex] = useState<Sex | null>(null);
@@ -35,9 +46,30 @@ export default function ProfileScreen() {
   const [activity, setActivity] = useState<ActivityLevel>('moderate');
   const [goal, setGoal] = useState<GoalType>('maintain');
   const [targetWeight, setTargetWeight] = useState('');
+  const [waterTarget, setWaterTarget] = useState('');
+  const [targetsLocked, setTargetsLocked] = useState(false);
+  const [calorieTarget, setCalorieTarget] = useState('');
+  const [proteinTarget, setProteinTarget] = useState('');
+  const [carbsTarget, setCarbsTarget] = useState('');
+  const [fatTarget, setFatTarget] = useState('');
   const [newWeight, setNewWeight] = useState('');
-  const [latestWeight, setLatestWeight] = useState<WeightLog | null>(null);
-  const [saving, setSaving] = useState(false);
+
+  const { latest: latestWeight } = useLatestWeight();
+  const upsertWeight = useUpsertWeight();
+  const updateProfile = useUpdateProfile();
+  const exportData = useExportData();
+  const changePassword = useChangePassword();
+  const [coachMotivation, setCoachMotivation] = useState('');
+  const [coachDislikes, setCoachDislikes] = useState('');
+  const [coachInjuries, setCoachInjuries] = useState('');
+  const [coachTone, setCoachTone] = useState<'gentle' | 'balanced' | 'direct'>('balanced');
+  const [dietaryStyle, setDietaryStyle] = useState<DietaryStyle>('omnivore');
+  const [allergies, setAllergies] = useState('');
+  const [dislikedFoods, setDislikedFoods] = useState('');
+  const [mealsPerDay, setMealsPerDay] = useState(3);
+  const [cookTimePref, setCookTimePref] = useState<CookTimePref>('any');
+  const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
@@ -48,104 +80,132 @@ export default function ProfileScreen() {
     setActivity(profile.activity_level);
     setGoal(profile.goal_type);
     setTargetWeight(profile.target_weight_kg?.toString() ?? '');
+    setWaterTarget(profile.water_target_ml?.toString() ?? '2000');
+    setTargetsLocked(profile.targets_locked);
+    setCalorieTarget(profile.calorie_target?.toString() ?? '');
+    setProteinTarget(profile.protein_target_g?.toString() ?? '');
+    setCarbsTarget(profile.carbs_target_g?.toString() ?? '');
+    setFatTarget(profile.fat_target_g?.toString() ?? '');
+    const coach = (profile.coaching_profile ?? {}) as CoachingProfile & {
+      motivation?: string; dislikes?: string[]; injuries?: string[]; coach_tone?: 'gentle' | 'balanced' | 'direct';
+    };
+    setCoachMotivation(coach.motivation ?? '');
+    setCoachDislikes((coach.dislikes ?? []).join(', '));
+    setCoachInjuries((coach.injuries ?? []).join(', '));
+    setCoachTone(coach.coach_tone ?? 'balanced');
+    setDietaryStyle(coach.dietary_style ?? 'omnivore');
+    setAllergies((coach.allergies ?? []).join(', '));
+    setDislikedFoods((coach.disliked_foods ?? []).join(', '));
+    setMealsPerDay(coach.meals_per_day ?? 3);
+    setCookTimePref(coach.cook_time_pref ?? 'any');
   }, [profile]);
 
-  const loadWeight = useCallback(async () => {
-    if (!session) return;
-    const { data } = await supabase
-      .from('weight_logs')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .order('logged_on', { ascending: false })
-      .limit(1);
-    setLatestWeight((data?.[0] as WeightLog) ?? null);
-  }, [session]);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadWeight();
-    }, [loadWeight])
-  );
+  const parseList = (raw: string) =>
+    raw.split(',').map((item) => item.trim()).filter(Boolean).slice(0, 10);
 
   const logWeight = async () => {
-    if (!session) return;
     const kg = parseFloat(newWeight);
     if (!kg || kg <= 0) {
       Alert.alert('Invalid weight', 'Enter your weight in kg.');
       return;
     }
-    const { error } = await supabase
-      .from('weight_logs')
-      .upsert(
-        { user_id: session.user.id, weight_kg: kg, logged_on: todayISO() },
-        { onConflict: 'user_id,logged_on' }
-      );
-    if (error) {
-      Alert.alert('Could not log weight', error.message);
-      return;
+    try {
+      await upsertWeight.mutateAsync({ date: todayISO(), weight_kg: kg });
+      setNewWeight('');
+    } catch (e) {
+      Alert.alert('Could not log weight', e instanceof Error ? e.message : 'Please try again.');
     }
-    setNewWeight('');
-    await loadWeight();
   };
 
   const saveProfile = async () => {
-    if (!session) return;
-    setSaving(true);
     try {
-      const parsedSex = sex;
-      const parsedBirthYear = parseInt(birthYear, 10) || null;
-      const parsedHeight = parseFloat(heightCm) || null;
-
-      // Recompute targets whenever we have enough data
-      const weightForTargets = latestWeight?.weight_kg ?? null;
-      const targets =
-        parsedSex && parsedBirthYear && parsedHeight && weightForTargets
-          ? computeTargets(
-              {
-                sex: parsedSex,
-                birth_year: parsedBirthYear,
-                height_cm: parsedHeight,
-                activity_level: activity,
-                goal_type: goal,
-              },
-              weightForTargets
-            )
-          : null;
-
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          display_name: displayName.trim() || null,
-          sex: parsedSex,
-          birth_year: parsedBirthYear,
-          height_cm: parsedHeight,
-          activity_level: activity,
-          goal_type: goal,
-          target_weight_kg: parseFloat(targetWeight) || null,
-          ...(targets && {
-            calorie_target: targets.calories,
-            protein_target_g: targets.proteinG,
-            carbs_target_g: targets.carbsG,
-            fat_target_g: targets.fatG,
-          }),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', session.user.id);
-
-      if (error) {
-        Alert.alert('Could not save profile', error.message);
-        return;
-      }
+      const updated = await updateProfile.mutateAsync({
+        display_name: displayName.trim() || null,
+        sex,
+        birth_year: parseInt(birthYear, 10) || null,
+        height_cm: parseFloat(heightCm) || null,
+        activity_level: activity,
+        goal_type: goal,
+        target_weight_kg: parseFloat(targetWeight) || null,
+        water_target_ml: parseInt(waterTarget, 10) || 2000,
+        targets_locked: targetsLocked,
+        coaching_profile: {
+          motivation: coachMotivation.trim() || null,
+          dislikes: parseList(coachDislikes),
+          injuries: parseList(coachInjuries),
+          coach_tone: coachTone,
+          dietary_style: dietaryStyle,
+          allergies: parseList(allergies),
+          disliked_foods: parseList(dislikedFoods),
+          meals_per_day: mealsPerDay,
+          cook_time_pref: cookTimePref,
+        },
+        ...(targetsLocked
+          ? {
+              calorie_target: parseInt(calorieTarget, 10) || null,
+              protein_target_g: parseInt(proteinTarget, 10) || null,
+              carbs_target_g: parseInt(carbsTarget, 10) || null,
+              fat_target_g: parseInt(fatTarget, 10) || null,
+            }
+          : {}),
+      });
       await refreshProfile();
       Alert.alert(
         'Profile saved',
-        targets
-          ? `Daily targets updated: ${targets.calories} kcal · P ${targets.proteinG} g · C ${targets.carbsG} g · F ${targets.fatG} g`
+        updated.calorie_target != null
+          ? `Daily targets updated: ${updated.calorie_target} kcal · P ${updated.protein_target_g} g · C ${updated.carbs_target_g} g · F ${updated.fat_target_g} g`
           : 'Log a weight and fill in sex, birth year and height to get automatic calorie targets.'
       );
-    } finally {
-      setSaving(false);
+    } catch (e) {
+      Alert.alert('Could not save profile', e instanceof Error ? e.message : 'Please try again.');
     }
+  };
+
+  const exportMyData = async () => {
+    try {
+      const bundle = await exportData.mutateAsync();
+      await Share.share({
+        title: 'My NutriWorkoutExpert data',
+        message: JSON.stringify(bundle, null, 2),
+      });
+    } catch (e) {
+      Alert.alert('Could not export', e instanceof Error ? e.message : 'Please try again.');
+    }
+  };
+
+  const doChangePassword = async () => {
+    if (newPassword.length < 8) {
+      Alert.alert('Too short', 'Use at least 8 characters.');
+      return;
+    }
+    try {
+      await changePassword.mutateAsync(newPassword);
+      setNewPassword('');
+      setShowPassword(false);
+      Alert.alert('Password updated', 'Your password has been changed.');
+    } catch (e) {
+      Alert.alert('Could not change password', e instanceof Error ? e.message : 'Please try again.');
+    }
+  };
+
+  const coachMemoryText = ((profile?.coach_memory ?? {}) as { text?: string }).text ?? '';
+
+  const clearCoachMemory = () => {
+    Alert.alert('Clear coach memory?', 'Your coach will forget everything it has learned from working with you.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await updateProfile.mutateAsync({ coach_memory: null });
+            await refreshProfile();
+          } catch (e) {
+            Alert.alert('Could not clear memory', e instanceof Error ? e.message : 'Please try again.');
+          }
+        },
+      },
+    ]);
   };
 
   const signOut = () => {
@@ -156,66 +216,51 @@ export default function ProfileScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardSafeView>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <SectionTitle>Today's weight</SectionTitle>
         <Card>
           {latestWeight && (
-            <Text style={styles.muted}>
+            <Muted>
               Last logged: {latestWeight.weight_kg} kg on {latestWeight.logged_on}
-            </Text>
+            </Muted>
           )}
           <View style={styles.row}>
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
+            <Input
+              style={{ flex: 1 }}
               placeholder="Weight (kg)"
-              placeholderTextColor="#999"
               keyboardType="numeric"
               value={newWeight}
               onChangeText={setNewWeight}
             />
-            <Pressable style={styles.button} onPress={logWeight}>
-              <Text style={styles.buttonText}>Log</Text>
-            </Pressable>
+            <Button title="Log" onPress={logWeight} loading={upsertWeight.isPending} />
           </View>
         </Card>
 
         <SectionTitle>About you</SectionTitle>
         <Card>
-          <TextInput
-            style={styles.input}
-            placeholder="Display name"
-            placeholderTextColor="#999"
-            value={displayName}
-            onChangeText={setDisplayName}
-          />
-          <View style={styles.chipRow}>
+          <Input placeholder="Display name" value={displayName} onChangeText={setDisplayName} />
+          <ChipRow>
             {(['male', 'female'] as Sex[]).map((s) => (
-              <Pressable
+              <Chip
                 key={s}
-                style={[styles.chip, sex === s && styles.chipActive]}
-                onPress={() => setSex(s)}>
-                <Text style={sex === s ? styles.chipTextActive : styles.chipText}>
-                  {s === 'male' ? 'Male' : 'Female'}
-                </Text>
-              </Pressable>
+                label={s === 'male' ? 'Male' : 'Female'}
+                active={sex === s}
+                onPress={() => setSex(s)}
+              />
             ))}
-          </View>
+          </ChipRow>
           <View style={styles.row}>
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
+            <Input
+              style={{ flex: 1 }}
               placeholder="Birth year"
-              placeholderTextColor="#999"
               keyboardType="numeric"
               value={birthYear}
               onChangeText={setBirthYear}
             />
-            <TextInput
-              style={[styles.input, { flex: 1 }]}
+            <Input
+              style={{ flex: 1 }}
               placeholder="Height (cm)"
-              placeholderTextColor="#999"
               keyboardType="numeric"
               value={heightCm}
               onChangeText={setHeightCm}
@@ -226,65 +271,241 @@ export default function ProfileScreen() {
         <SectionTitle>Activity level</SectionTitle>
         <Card>
           {ACTIVITIES.map((a) => (
-            <Pressable
+            <OptionRow
               key={a}
-              style={[styles.optionRow, activity === a && styles.optionRowActive]}
-              onPress={() => setActivity(a)}>
-              <Text style={activity === a ? styles.optionTextActive : undefined}>
-                {ACTIVITY_LABELS[a]}
-              </Text>
-            </Pressable>
+              label={ACTIVITY_LABELS[a]}
+              active={activity === a}
+              onPress={() => setActivity(a)}
+            />
           ))}
         </Card>
 
         <SectionTitle>Goal</SectionTitle>
         <Card>
-          <View style={styles.chipRow}>
+          <ChipRow>
             {GOALS.map((g) => (
-              <Pressable
-                key={g}
-                style={[styles.chip, goal === g && styles.chipActive]}
-                onPress={() => setGoal(g)}>
-                <Text style={goal === g ? styles.chipTextActive : styles.chipText}>
-                  {GOAL_LABELS[g]}
-                </Text>
-              </Pressable>
+              <Chip key={g} label={GOAL_LABELS[g]} active={goal === g} onPress={() => setGoal(g)} />
             ))}
-          </View>
-          <TextInput
-            style={styles.input}
+          </ChipRow>
+          <Input
             placeholder="Target weight (kg, optional)"
-            placeholderTextColor="#999"
             keyboardType="numeric"
             value={targetWeight}
             onChangeText={setTargetWeight}
           />
+          <Pressable
+            accessibilityLabel="Goal progress"
+            style={styles.accountRow}
+            onPress={() => router.push('/goal-analytics')}>
+            <Text style={styles.redoText}>View progress →</Text>
+          </Pressable>
+          <Input
+            placeholder="Water target (ml, default 2000)"
+            keyboardType="numeric"
+            value={waterTarget}
+            onChangeText={setWaterTarget}
+          />
         </Card>
 
-        {profile?.calorie_target != null && (
-          <>
-            <SectionTitle>Current daily targets</SectionTitle>
-            <Card>
-              <Text>
-                {profile.calorie_target} kcal · Protein {profile.protein_target_g ?? '—'} g ·
-                Carbs {profile.carbs_target_g ?? '—'} g · Fat {profile.fat_target_g ?? '—'} g
+        <SectionTitle>Current daily targets</SectionTitle>
+        <Card>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Target lock toggle"
+            style={styles.lockRow}
+            onPress={() => setTargetsLocked((v) => !v)}>
+            <View style={styles.lockHeader}>
+              <Text style={styles.lockTitle}>{targetsLocked ? 'Custom targets' : 'Auto targets'}</Text>
+              <Text style={[styles.targetPill, targetsLocked ? styles.targetPillCustom : styles.targetPillAuto]}>
+                {targetsLocked ? 'custom' : 'auto'}
               </Text>
-              <Text style={styles.muted}>
-                Recalculated automatically when you save your profile (Mifflin-St Jeor formula).
-              </Text>
-            </Card>
-          </>
-        )}
+            </View>
+            <Muted>{targetsLocked ? 'Tap to resume auto targets.' : 'Auto · Mifflin-St Jeor'}</Muted>
+          </Pressable>
+          {targetsLocked ? (
+            <>
+              <Input placeholder="Calories" keyboardType="numeric" value={calorieTarget} onChangeText={setCalorieTarget} />
+              <View style={styles.row}>
+                <Input style={{ flex: 1 }} placeholder="Protein g" keyboardType="numeric" value={proteinTarget} onChangeText={setProteinTarget} />
+                <Input style={{ flex: 1 }} placeholder="Carbs g" keyboardType="numeric" value={carbsTarget} onChangeText={setCarbsTarget} />
+                <Input style={{ flex: 1 }} placeholder="Fat g" keyboardType="numeric" value={fatTarget} onChangeText={setFatTarget} />
+              </View>
+              <Muted>Auto-recompute is off while custom targets are locked.</Muted>
+            </>
+          ) : (
+            <>
+              <Input
+                placeholder="Calories"
+                value={`${profile?.calorie_target ?? '—'} kcal`}
+                editable={false}
+              />
+              <View style={styles.row}>
+                <Input style={{ flex: 1 }} placeholder="Protein g" value={`${profile?.protein_target_g ?? '—'} g`} editable={false} />
+                <Input style={{ flex: 1 }} placeholder="Carbs g" value={`${profile?.carbs_target_g ?? '—'} g`} editable={false} />
+                <Input style={{ flex: 1 }} placeholder="Fat g" value={`${profile?.fat_target_g ?? '—'} g`} editable={false} />
+              </View>
+              <Muted>Recalculated automatically when you save your profile.</Muted>
+            </>
+          )}
+        </Card>
 
-        <Pressable style={styles.button} onPress={saveProfile} disabled={saving}>
-          <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Save profile & update targets'}</Text>
+        <Button
+          title={updateProfile.isPending ? 'Saving…' : 'Save profile & update targets'}
+          onPress={saveProfile}
+          disabled={updateProfile.isPending}
+        />
+
+        <Pressable onPress={() => router.push('/(onboarding)')} style={styles.redoButton}>
+          <Text style={styles.redoText}>Redo setup</Text>
         </Pressable>
+
+        <SectionTitle>Your coach</SectionTitle>
+        <Card>
+          <Muted>This is everything your coach knows about you. Edit it anytime.</Muted>
+          <Input
+            placeholder="What's driving you? (e.g. feel confident hiking)"
+            value={coachMotivation}
+            onChangeText={setCoachMotivation}
+          />
+          <Input
+            placeholder="Dislikes, comma-separated (e.g. running, burpees)"
+            value={coachDislikes}
+            onChangeText={setCoachDislikes}
+          />
+          <Input
+            placeholder="Injuries/constraints, comma-separated"
+            value={coachInjuries}
+            onChangeText={setCoachInjuries}
+          />
+          <ChipRow>
+            {(['gentle', 'balanced', 'direct'] as const).map((tone) => (
+              <Chip key={tone} label={tone} active={coachTone === tone} onPress={() => setCoachTone(tone)} />
+            ))}
+          </ChipRow>
+
+          <Text style={styles.memoryHeading}>Nutrition preferences</Text>
+          <Muted>Used every time your nutritionist plans meals.</Muted>
+          <ChipRow>
+            {DIETARY_STYLES.map((style) => (
+              <Chip key={style} label={style} active={dietaryStyle === style} onPress={() => setDietaryStyle(style)} />
+            ))}
+          </ChipRow>
+          <Input
+            placeholder="Allergies, comma-separated (kept out of every plan)"
+            value={allergies}
+            onChangeText={setAllergies}
+          />
+          <Input
+            placeholder="Foods you dislike, comma-separated"
+            value={dislikedFoods}
+            onChangeText={setDislikedFoods}
+          />
+          <Muted>Meals per day</Muted>
+          <ChipRow>
+            {[2, 3, 4, 5].map((n) => (
+              <Chip key={n} label={`${n}`} active={mealsPerDay === n} onPress={() => setMealsPerDay(n)} />
+            ))}
+          </ChipRow>
+          <Muted>Cooking time</Muted>
+          <ChipRow>
+            {COOK_TIME_PREFS.map((pref) => (
+              <Chip key={pref} label={pref} active={cookTimePref === pref} onPress={() => setCookTimePref(pref)} />
+            ))}
+          </ChipRow>
+
+          {coachMemoryText ? (
+            <>
+              <Text style={styles.memoryHeading}>What your coach remembers</Text>
+              <Muted>{coachMemoryText}</Muted>
+              <Pressable onPress={clearCoachMemory} hitSlop={8}>
+                <Text style={styles.clearMemory}>Clear memory</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Muted>Your coach builds a memory as you log and review weeks together.</Muted>
+          )}
+          <Muted>Saved with "Save profile" below.</Muted>
+        </Card>
+
+        <Card>
+          <Text style={styles.memoryHeading}>AI conversation privacy</Text>
+          <Muted>
+            AI Hub conversations are processed and briefly retained by Google to provide responses. Photos are never sent to the Hub; progress-photo analysis remains a separate, opt-in flow.
+          </Muted>
+        </Card>
+
+        <SectionTitle>Account</SectionTitle>
+        <Card>
+          <Pressable
+            accessibilityLabel="Progress photos"
+            onPress={() => router.push('/progress-photos')}
+            style={styles.accountRow}>
+            <Text>Progress photos</Text>
+            <Muted>Photos stay on this device.</Muted>
+          </Pressable>
+          <Pressable
+            accessibilityLabel="Notifications"
+            onPress={() => router.push('/notifications')}
+            style={styles.accountRow}>
+            <Text>Notifications</Text>
+            <Muted>Reminders, quiet hours, weekly review pushes.</Muted>
+          </Pressable>
+          <Pressable
+            accessibilityLabel="Badges"
+            onPress={() => router.push('/badges')}
+            style={styles.accountRow}>
+            <Text>Badges</Text>
+            <Muted>Earned from logged actions.</Muted>
+          </Pressable>
+          <Pressable
+            accessibilityLabel="AI photo consent"
+            onPress={() => router.push('/physique-compare')}
+            style={styles.accountRow}>
+            <Text>AI photo consent</Text>
+            <Muted>Review or revoke physique compare consent.</Muted>
+          </Pressable>
+          {showPassword ? (
+            <>
+              <Input
+                placeholder="New password"
+                secureTextEntry
+                autoComplete="new-password"
+                value={newPassword}
+                onChangeText={setNewPassword}
+              />
+              <View style={styles.row}>
+                <Button
+                  title={changePassword.isPending ? 'Saving…' : 'Save password'}
+                  onPress={doChangePassword}
+                  disabled={changePassword.isPending}
+                  style={{ flex: 1 }}
+                />
+                <Pressable style={styles.cancelInline} onPress={() => setShowPassword(false)}>
+                  <Muted>Cancel</Muted>
+                </Pressable>
+              </View>
+            </>
+          ) : (
+            <Pressable onPress={() => setShowPassword(true)} style={styles.accountRow}>
+              <Text>Change password</Text>
+            </Pressable>
+          )}
+          <Pressable
+            onPress={exportMyData}
+            style={styles.accountRow}
+            disabled={exportData.isPending}>
+            <Text>{exportData.isPending ? 'Preparing…' : 'Export my data'}</Text>
+          </Pressable>
+          <Pressable onPress={() => router.push('/delete-account')} style={styles.accountRow}>
+            <Text style={styles.deleteText}>Delete account</Text>
+          </Pressable>
+        </Card>
 
         <Pressable style={styles.signOutButton} onPress={signOut}>
           <Text style={styles.signOutText}>Sign out</Text>
         </Pressable>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardSafeView>
   );
 }
 
@@ -293,80 +514,71 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 10,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#666',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: '#888',
-  },
   row: {
     flexDirection: 'row',
     gap: 8,
     alignItems: 'center',
     backgroundColor: 'transparent',
   },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    backgroundColor: 'transparent',
-  },
-  chip: {
-    borderWidth: 1,
-    borderColor: '#16a34a',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  chipActive: {
-    backgroundColor: '#16a34a',
-  },
-  chipText: {
-    fontSize: 14,
-    color: '#16a34a',
-  },
-  chipTextActive: {
-    fontSize: 14,
-    color: '#fff',
-  },
-  optionRow: {
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: 'transparent',
-  },
-  optionRowActive: {
-    backgroundColor: '#16a34a',
-  },
-  optionTextActive: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  button: {
-    backgroundColor: '#16a34a',
-    borderRadius: 10,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
+  redoButton: {
     alignItems: 'center',
+    paddingVertical: 8,
   },
-  buttonText: {
-    color: '#fff',
+  redoText: {
+    color: Brand.accent,
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  accountRow: {
+    paddingVertical: 10,
+  },
+  lockRow: {
+    paddingVertical: 4,
+    backgroundColor: 'transparent',
+  },
+  lockHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    backgroundColor: 'transparent',
+  },
+  lockTitle: {
     fontWeight: '600',
   },
-  muted: {
-    fontSize: 13,
-    opacity: 0.6,
+  targetPill: {
+    overflow: 'hidden',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    fontSize: 12,
+    fontWeight: '700',
   },
+  targetPillAuto: {
+    color: Brand.accent,
+    backgroundColor: 'rgba(22,163,74,.12)',
+  },
+  targetPillCustom: {
+    color: '#fff',
+    backgroundColor: Brand.accent,
+  },
+  deleteText: {
+    color: Brand.destructive,
+    fontWeight: '500',
+  },
+  cancelInline: {
+    paddingHorizontal: 10,
+    justifyContent: 'center',
+  },
+  memoryHeading: { fontSize: 14, fontWeight: '600', marginTop: 4 },
+  clearMemory: { color: Brand.destructive, fontSize: 13 },
   signOutButton: {
     alignItems: 'center',
     paddingVertical: 12,
     marginBottom: 24,
   },
   signOutText: {
-    color: '#dc2626',
+    color: Brand.destructive,
     fontSize: 15,
     fontWeight: '500',
   },

@@ -16,6 +16,12 @@ flows and screen specs in ../docs/ui-flows.md.
 
 ## Screen rules
 
+- Safe areas are enforced centrally by the root Stack for custom/headerless routes. Add new
+  headerless routes to `headerlessSafeAreaRoutes` in `_layout.tsx`; do not add manual status-bar
+  padding inside the screen. Native Stack headers and tab navigators already manage their own
+  insets and must not be wrapped again. `AppScreen` also applies the root route's single keyboard
+  avoidance boundary; do not nest another `KeyboardAvoidingView`. Standalone React Native modals
+  use `AppScreen modal`. Tab screens own keyboard handling inside their nested navigator.
 - Data loading: `useFocusEffect(useCallback(...))` so tabs refresh on focus. Target state
   (post NWE-114): TanStack Query hooks over the typed client in `lib/api.ts` — **never**
   `supabase.from()` in new code; existing direct queries are legacy until NWE-114 migrates

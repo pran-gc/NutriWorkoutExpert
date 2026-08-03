@@ -1,0 +1,12 @@
+{
+  "//": "Deno config for the Supabase edge functions. Kept separate from the app's tsconfig — the app (Metro/TS) excludes this folder; Deno owns it.",
+  "compilerOptions": {
+    "lib": ["deno.window", "esnext"],
+    "strict": true
+  },
+  "imports": {
+    "hono": "npm:hono@^4.6.14",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@^2.109.0",
+    "zod": "npm:zod@^3.24.1"
+  }
+}

@@ -29,7 +29,8 @@ Everything server-side lives under this folder. Detailed docs: ../docs/data-mode
   never in code, never in the app.
 - Service-role client only where user-scoped RLS genuinely cannot work (e.g. the signup
   trigger equivalent); name it explicitly (`adminDb`) so reviews can spot it.
-- AI endpoints: aggregates/ephemeral photos in, text out; nothing image-shaped is ever
-  persisted server-side (../docs/ai.md).
+- AI endpoints: existing one-shot routes use aggregates/ephemeral photos. The agentic Hub is the
+  explicit exception: capped PII-free rows may be read through user-JWT tools, but its dispatcher
+  has no write path. Nothing image-shaped is ever persisted server-side (../docs/ai.md).
 - Local dev/tests run against `supabase start` (Docker) — integration tests must never touch
   the hosted project.

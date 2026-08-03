@@ -21,13 +21,13 @@ flowchart TD
         TODAY["index — Today\ndashboard"]
         FOOD["food — Food\nsearch + log"]
         WORK["workouts — Workouts\nsessions + routines"]
-        INSIGHTS["🚧 insights — Insights\nNWE-503"]
+        INSIGHTS["insights — Insights\nNWE-503"]
         PROFILE["profile — Profile\nstats, goals, settings"]
     end
 
     FOOD --> EDITFOOD["🚧 edit entry panel · NWE-205"]
-    WORK --> ROUTINES["🚧 routine editor · NWE-302"]
-    WORK --> EXDETAIL["🚧 exercise detail + chart · NWE-303"]
+    WORK --> ROUTINES["routine editor · NWE-302"]
+    WORK --> EXDETAIL["exercise detail + chart · NWE-303"]
     INSIGHTS --> COMPARE["🚧 physique compare · NWE-507"]
     PROFILE --> MEASURE["🚧 measurements · NWE-403 (later)"]
 ```
@@ -55,18 +55,23 @@ Rules: skippable at any step; re-runnable from Profile; existing complete profil
 Reads (single API call or parallel queries): today's food totals, water total, latest weight,
 today's workout sessions, profile targets, streak (NWE-602).
 
-Top-to-bottom layout: greeting + date → 🚧 **macro rings** (NWE-406: three concentric rings
+Top-to-bottom layout: greeting + date → **macro rings** (NWE-406: three concentric rings
 for protein/carbs/fat vs targets, largest target outermost, calories in the center,
 Apple-style overshoot marker; replaces the interim macro bars — protein `#dc2626`, carbs
-`#f59e0b`, fat `#3b82f6`, always with text labels, never color alone) → water bar (NWE-203)
+`#b45309`, fat `#3b82f6`, always with text labels, never color alone) → water bar (NWE-203)
 → weight card with trend chart (NWE-401: 30/90-day toggle, dots + 7-day moving average +
 dashed target line) → today's workouts. Pull-to-refresh; every tab refetches on focus.
 
-### Analytics surfaces (🚧 NWE-407/408/409)
+Charting implementation note: Epic 3/4 chart surfaces use custom primitives in
+`components/analytics.tsx` on top of `react-native-svg`, instead of a bundled charting library.
+This keeps the dependency surface small while giving exact control over macro-ring lap markers,
+single-point/gap behavior, accessibility labels, and reduced-motion fallbacks.
 
-Glanceable, curated — not a BI dashboard. Entry points: chart icon in the Food tab header →
+### Analytics surfaces (NWE-407/408/409)
+
+Glanceable, curated — not a BI dashboard. Entry points: Food tab analytics link →
 food analytics (adherence calendar heatmap, daily macro split, meal-type split, top foods);
-chart icon in Workouts → gym analytics (weekly volume by muscle group, consistency + streaks,
+Workouts header analytics link → gym analytics (weekly volume by muscle group, consistency + streaks,
 PR feed, cardio trends); goal analytics (weight projection with honest ETA from tested math,
 pace vs plan, adherence↔progress) lives in Profile or Insights. Days without logs render as
 missing, never zero.
@@ -96,12 +101,12 @@ Day list is grouped by meal with per-meal and daily totals (kcal + P/C/F). Water
 ```mermaid
 flowchart TD
     C[📷 camera button on Food tab] --> PH["Take/pick photo\n(saved on-device only)"]
-    PH --> AI["AI analyzes (ephemeral):\ntop-5 dish candidates,\neach with ingredients + est. quantities"]
+    PH --> AI["AI analyzes (ephemeral):\nvalidated dish candidates,\neach with ingredients + est. quantities"]
     AI --> SEL{User picks a dish}
     SEL -- none fit --> FALL[Fall back to search / manual]
     SEL --> ED["Editable ingredient list:\nadjust quantities, add/remove\n('portions are estimates' notice)"]
     ED --> RES["Resolve ingredients → macros\n(USDA generic / OFF packaged;\nunresolved = AI estimate, flagged)"]
-    RES --> LOG["Log as ONE entry\n(dish name, summed macros,\ningredients kept editable)"]
+    RES --> LOG["Log as ONE entry\n(dish name, summed macros,\nsource='ai_photo')"]
 ```
 
 ## Workout logging
@@ -110,15 +115,15 @@ flowchart TD
 flowchart TD
     W[Workouts tab] --> N{Start how?}
     N -- "+ Log a workout" --> FORM["Session form:\ntitle · duration · notes\n+ set rows (exercise · reps · kg)"]
-    N -- "🚧 Start routine (NWE-302)" --> PRE["Pre-filled from routine:\nexercises + target sets×reps,\nplaceholders = last session's numbers"]
-    N -- "🚧 Generate with AI (NWE-509)" --> GEN["Setup Q&A: goal, experience,\ndays/week, equipment, constraints\n→ program saved as editable routines"]
+    N -- "Start routine (NWE-302)" --> PRE["Pre-filled from routine:\nexercises + target sets×reps"]
+    N -- "Generate with AI (NWE-509)" --> GEN["Setup Q&A: goal, experience,\ndays/week, equipment, constraints\n→ program saved as editable routines"]
     GEN --> PRE
     PRE --> FORM
-    FORM -- "exercise field" --> PICK["🚧 Exercise picker (NWE-301):\nsearch library (seeded + custom)\n+ create custom inline"]
+    FORM -- "exercise field" --> PICK["Exercise picker (NWE-301):\nsearch library (seeded + custom)\n+ create custom inline"]
     PICK -- "kind = cardio (NWE-304)" --> CARDIO["distance + duration row\n(pace computed)"]
     FORM -- Save --> HIST["History list (last 14 days)\nsession cards with sets"]
-    HIST -- tap --> EDIT["🚧 Edit session (NWE-305)"]
-    HIST -- "tap exercise name" --> PROG["🚧 Exercise detail (NWE-303):\nbest set + volume over time chart"]
+    HIST -- tap --> EDIT["Edit session (NWE-305)"]
+    HIST -- "tap exercise name" --> PROG["Exercise detail (NWE-303):\nbest set + volume over time chart"]
     HIST -- long-press --> DEL[Delete confirm]
 ```
 
@@ -126,10 +131,10 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    I["🚧 Insights tab"] --> CUR["This week's AI review\n(rendered markdown):\nsummary ¶ + 2–3 recommendations\n+ encouragement"]
+    I["Insights tab"] --> CUR["This week's AI review:\nsummary ¶ + 2–3 recommendations\n+ encouragement"]
     I --> PAST[Past reviews list]
     I --> GEN["Generate now\n(disabled if this week exists)"]
-    I --> PC["🚧 Physique compare"]
+    I --> PC["Physique compare"]
     PC --> PICK2["Pick 2 photos: previous + current\n(camera / library / local grid)\nside-by-side preview"]
     PICK2 --> CONSENT{"First time? Opt-in consent:\n'never stored by us; sent to\nGoogle Gemini for analysis only;\nfree tier: Google may process it'"}
     CONSENT -- accept --> AN["API → Gemini vision\n(photos ephemeral + stats context)"]
@@ -137,6 +142,8 @@ flowchart TD
     AN --> FB["Feedback card (deletable):\nencouraging, body-neutral,\nno medical claims"]
 ```
 
+Current implementation: the Insights tab has a weekly review hero, generate action, past
+reviews list, council/training/physique rows, and a physique compare entry card.
 Empty state for Insights explains what weekly reviews are and when the first one arrives.
 "Your photos are never stored" is repeated on the compare screen itself.
 
@@ -146,12 +153,38 @@ attribution — goal coach (target diffs), nutrition coach (diet proposals), tra
 Between weeklies, drop detectors (logging lapse, weight stall, volume drop) surface short
 encouraging check-in notes here.
 
+## AI Hub (NWE-123/124/128–132)
+
+A safe-area-aware sparkles FAB floats above the tab bar on every tab. Tap opens the full-screen
+Hub; long-press opens recent conversations. The first-run state offers workout, nutrition, and
+focus prompts plus the Google retention/photo boundary disclosure. During a turn, a real progress
+strip follows thought/tool events and streamed markdown appears incrementally. Assistant bubbles
+with tool calls expose a collapsed “What I looked at” trace; failed turns are muted and retryable.
+
+Proposal tool calls render owned inline cards for program revisions, meal plans, food logs,
+workout logs, recipes, or target changes as part of the same chat turn, including a newly-created
+thread. The assistant asks one direct question when required data is missing; once a card exists,
+its bubble is only a short natural acknowledgement and never narrates app mechanics, permissions,
+review, or approval. Tapping a card opens a safe-area-aware, keyboard-aware, swipe-dismissable
+review sheet in read-only mode. A 44pt Edit action in the top-right progressively reveals the
+existing editors; closing the sheet discards local edits. Rich food/recipe reviews show concise
+macro and ingredient summaries, while edit mode provides ingredient grams, provenance,
+delete/swap/add controls, meal/date/servings, and collapsed micronutrients. Workout reviews group
+sets by exercise under explicit Set/Reps/kg (or Set/Minutes/km) headers. Exercise-directory
+matching is invisible best-effort server work and never blocks logging; unmatched free-text names
+remain valid. Quantity, deletion, servings, meal/date, exercise-name, and set edits stay local;
+only add/swap ingredient performs one resolver call. Log/Save/Apply is the short primary action and
+submits exactly the reviewed snapshot; food sheets also offer an independent “Save as recipe”.
+Superseded cards collapse to “Updated below” and cannot be approved. Allergies, invalid totals,
+empty ingredients and target locks block the action with an inline explanation. Conversations have
+explicit empty/loading/error states and can be resumed from the recent-thread sheet.
+
 ## Profile
 
 Sections top-to-bottom: today's weight quick-log (upsert per day) → about you (name, sex,
 birth year, height) → activity level → goal + target weight ("View progress →" opens goal
-analytics, 🚧 NWE-409) → current computed targets (with 🚧 NWE-404 "custom targets" lock
-toggle) → 🚧 Progress photos (NWE-405) → 🚧 Badges (NWE-604) → 🚧 Notifications screen
+analytics, NWE-409) → current computed targets (with NWE-404 "custom targets" lock
+toggle) → Progress photos (NWE-405, local manifest only) → Badges (NWE-604 draft) → Notifications screen
 (NWE-607/601: master + per-category toggles, reminder time pickers, quiet hours; OS permission
 asked in-context on first enable, never at launch) → 🚧 AI consent toggle (revoke NWE-507) →
 🚧 Account section (NWE-117: change password · export my data · delete account, red,
@@ -162,10 +195,10 @@ always states the resulting numbers.
 
 ## Gamification (🚧 NWE-602/604/605/606)
 
-Dashboard carries the engagement loop: **daily quests widget** (3–5 auto-completing quests
+Dashboard carries the engagement loop: **daily quests widget** (3 starter auto-completing quests
 derived from the user's own goals — completing the real action checks them off, no manual
-ticking; all done = "perfect day") + **streak counter** (logging streak; stricter perfect-day
-streak). **Badge gallery** lives off Profile: earned with dates, locked ones greyed with an
+ticking; perfect-day polish pending) + **streak counter** (food logging streak; stricter perfect-day
+streak pending). **Badge gallery** lives off Profile: earned/locked state with an
 encouraging "how to earn" hint. Guardrail: celebrate real actions, never guilt/FOMO; rest days
 respected (workout quest becomes recovery/water).
 
@@ -175,6 +208,18 @@ Durations/easing defined as tokens once. Reduced-motion setting → static fallb
 never block input.
 
 ## Cross-cutting UX rules
+
+- **Liquid Glass (NWE-805):** material-bearing shared controls use `<Surface>` from
+  `lib/glass.tsx`; screens never import `GlassView`. Native Liquid Glass is limited to supported
+  iOS runtimes and automatically becomes an opaque themed surface on older iOS, Android, web, or
+  when Reduce Transparency is enabled. Use regular glass for floating cards/sheets and clear
+  glass for compact controls. Always provide a tint/scrim where content scrolls underneath and
+  maintain WCAG AA: 4.5:1 for body text, 3:1 for large text/control boundaries. Do not animate a
+  glass parent with opacity; the shared motion/accessibility gate disables glass animation when
+  Reduce Motion is enabled.
+- Not every primitive is a material: `Muted` is text hierarchy, `SectionTitle` is a heading,
+  `ProgressBar` is a clipped data visualization, and `ChipRow` is layout-only. They intentionally
+  remain non-glass and inherit their nearest surface.
 
 - Every screen must have a designed **empty state** (first-run) and **loading state**
   (no flash of wrong content while session/profile loads).

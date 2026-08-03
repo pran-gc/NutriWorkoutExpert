@@ -1,0 +1,44 @@
+# Maestro E2E — signed-in navigation through Epic 4 analytics entry points.
+# Mac-only, against a running dev build + local Supabase stack.
+#   maestro test .maestro/analytics-navigation.yaml
+appId: com.anonymous.NutriWorkoutExpert
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    text: 'Open'
+    optional: true
+
+- assertVisible: 'Sign in'
+- tapOn: 'Email'
+- inputText: 'test@example.com'
+- tapOn: 'Password'
+- inputText: 'password123!'
+- tapOn: 'Sign in'
+
+- waitForAnimationToEnd
+- tapOn:
+    text: 'Skip'
+    optional: true
+- waitForAnimationToEnd
+- assertVisible: 'Today'
+- tapOn: 'Food tab'
+- tapOn: 'Food analytics'
+- assertVisible: 'Food analytics'
+- tapOn:
+    point: '8%,9%'
+
+- tapOn: 'Workouts tab'
+- tapOn: 'Gym analytics'
+- assertVisible: 'Gym analytics'
+- tapOn:
+    point: '8%,9%'
+
+- tapOn:
+    point: '88%,95%'
+- scrollUntilVisible:
+    element: 'Progress photos'
+    direction: DOWN
+- tapOn:
+    point: '20%,37%'
+- assertVisible: 'Projection'

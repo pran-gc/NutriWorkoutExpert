@@ -1,0 +1,38 @@
+# Weekly database export (NWE-115 AC#4). The Supabase free tier has no automated
+# backups, so we pg_dump on a schedule and keep the dump as a build artifact.
+# Also runnable on demand (workflow_dispatch).
+#
+# Required repo secret:
+#   SUPABASE_DB_URL — the hosted Postgres connection string
+#                     (Dashboard → Project Settings → Database → Connection string, URI)
+name: Weekly backup
+
+on:
+  schedule:
+    - cron: '17 3 * * 0' # Sundays 03:17 UTC
+  workflow_dispatch:
+
+jobs:
+  pg-dump:
+    name: pg_dump → artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install postgres client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Dump database
+        run: |
+          STAMP="$(date -u +%Y%m%d-%H%M)"
+          pg_dump "${{ secrets.SUPABASE_DB_URL }}" \
+            --no-owner --no-privileges --format=custom \
+            --file "nwe-backup-${STAMP}.dump"
+          echo "STAMP=${STAMP}" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nwe-backup-${{ env.STAMP }}
+          path: nwe-backup-*.dump
+          retention-days: 30

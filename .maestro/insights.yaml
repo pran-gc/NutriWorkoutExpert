@@ -1,0 +1,26 @@
+# Maestro E2E — open the Epic 5 Insights tab and generate/view weekly review.
+# Mac-only, against a running dev build + local Supabase stack.
+#   maestro test .maestro/insights.yaml
+appId: com.anonymous.NutriWorkoutExpert
+---
+- launchApp:
+    clearState: true
+- tapOn:
+    text: 'Open'
+    optional: true
+
+- assertVisible: 'Sign in'
+- tapOn: 'Email'
+- inputText: 'test@example.com'
+- tapOn: 'Password'
+- inputText: 'password123!'
+- tapOn: 'Sign in'
+
+- assertVisible: 'Today'
+- tapOn: 'Insights tab'
+- assertVisible: 'Insights'
+- assertVisible: 'Weekly review'
+- tapOn:
+    text: 'Generate review|Refresh review'
+    optional: true
+- assertVisible: 'Past reviews'

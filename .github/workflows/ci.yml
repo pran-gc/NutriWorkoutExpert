@@ -1,0 +1,83 @@
+# CI — typecheck + unit on every push/PR; integration against a local Supabase
+# stack. E2E (Maestro) is Mac-only and run manually (macOS runners are costly —
+# decision noted in README "How we test"). (NWE-111 AC#4.)
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  typecheck-and-unit:
+    name: Typecheck + unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck (app + shared boundary)
+        run: npm run typecheck
+      - name: App guard — no direct DB access
+        run: npm run check:no-supabase-from
+      - name: UI guard — glass only through Surface
+        run: npm run check:glass-imports
+      - name: Unit tests — shared domain (Vitest)
+        run: npm run test:shared
+      - name: Unit tests — app components (jest-expo)
+        run: npm test
+
+  deno-api:
+    name: API typecheck + tests (Deno)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Typecheck edge functions
+        run: deno check --config supabase/functions/deno.json supabase/functions/api/index.ts
+
+  integration:
+    name: Integration (API vs local Supabase)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local Supabase stack
+        run: supabase start
+      - name: Reset DB (replay migrations)
+        run: supabase db reset
+      - name: API integration tests
+        run: |
+          # Extract keys from JSON (robust across CLI versions — the older
+          # `grep ANON_KEY` on -o env output was fragile). The integration
+          # helpers build a service-role admin client at import time, so
+          # SUPABASE_SERVICE_ROLE_KEY is REQUIRED, not just the anon key —
+          # omitting it throws "supabaseKey is required" before any test runs.
+          status_json="$(supabase status -o json)"
+          export SUPABASE_URL="http://127.0.0.1:54321"
+          export SUPABASE_ANON_KEY="$(echo "$status_json" | jq -r '.ANON_KEY')"
+          export SUPABASE_SERVICE_ROLE_KEY="$(echo "$status_json" | jq -r '.SERVICE_ROLE_KEY')"
+          if [ -z "$SUPABASE_ANON_KEY" ] || [ "$SUPABASE_ANON_KEY" = "null" ] \
+             || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ "$SUPABASE_SERVICE_ROLE_KEY" = "null" ]; then
+            echo "::error::Could not extract Supabase keys from 'supabase status -o json'."
+            echo "$status_json"
+            exit 1
+          fi
+          npm run test:api
+      - name: Stop stack
+        if: always()
+        run: supabase stop
+
+  # E2E (Maestro) is Mac-only and run manually on the developer's machine:
+  #   maestro test .maestro/sign-in.yaml
+  # A macOS runner would work but is left out of CI on cost grounds (README).

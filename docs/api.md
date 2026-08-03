@@ -60,14 +60,22 @@ Status: ✅ exists · 🔜 M1 (NWE-113/114) · 🚧 arrives with its feature sto
 |---|---|---|
 | 🔜 `GET /food-logs?date=` | 114 | day's entries + computed totals |
 | 🔜 `POST /food-logs` | 114 | manual or from-search entry (denormalized macros) |
+| ✅ `GET /food-logs/totals?date=` | 130 | macro totals plus ingredient-derived nullable micronutrients, partial flags, and approximate provenance |
 | 🔜 `PATCH /food-logs/:id` · `DELETE /food-logs/:id` | 114/205 | edit rescales macros server-side |
 | 🔜 `GET /foods/search?q=` | 114 | proxies Open Food Facts (normalized per-100g), caches hot queries |
-| 🚧 `POST /foods/analyze-photo` | 508 | ephemeral photo → top-5 dish candidates + ingredients + quantities (Gemini vision) |
-| 🚧 `POST /foods/resolve` | 508 | ingredients → macros via USDA FoodData Central (generic) + Open Food Facts (packaged) |
+| ✅ `POST /foods/analyze-photo` | 508 | ephemeral photo → validated dish candidates + ingredients + quantities |
+| ✅ `POST /foods/resolve` | 508 | ingredients → macros, unresolved rows flagged as AI estimates |
 | 🚧 `GET /foods/recent` | 201 | last 20 distinct logged foods |
 | 🚧 `GET/POST/DELETE /favorites` | 201 | |
 | 🚧 `GET/POST/PATCH/DELETE /recipes` | 202 | items nested; totals computed in shared logic |
 | 🚧 `GET /water?date=` · `POST /water` · `DELETE /water/last?date=` | 203 | totals + undo |
+
+### Nutrition (AI meal planner)
+| Method & path | Story | Notes |
+|---|---|---|
+| ✅ `POST /nutrition/plan` | 121 | nutritionist plans one day: `{date}` → `{plan, insight_id}`. Full context (targets + training-day awareness from routines/sessions + logged-food continuity + dietary/coaching profile/memory). Draft stored in `insights` (kind `nutrition`); 3/day quota |
+| ✅ `POST /nutrition/plan/refine` | 121 | chat-to-edit over a plan draft: `{insight_id, message}` → `{reply, updated_plan?}`; last-8-turn history, ≤20 turns/draft; cross-user 404 |
+| ✅ `POST /nutrition/plan/log-meal` | 121 | "I had this": `{insight_id, meal_index, logged_on}` inserts one `food_logs` row with the planned meal's macros |
 
 ### Workouts
 | Method & path | Story | Notes |
@@ -75,38 +83,60 @@ Status: ✅ exists · 🔜 M1 (NWE-113/114) · 🚧 arrives with its feature sto
 | 🔜 `GET /workout-sessions?from&to` | 114 | with nested sets |
 | 🔜 `POST /workout-sessions` | 114 | session + sets in one call (transactional) |
 | 🔜 `PATCH /workout-sessions/:id` · `DELETE …/:id` | 114/305 | |
-| 🚧 `GET /exercises?q=` · `POST /exercises` | 301 | global seed + user's custom |
-| 🚧 `GET /exercises/:id/history` | 303 | best set + volume per session, for charts |
-| 🚧 `GET/POST/PATCH/DELETE /routines` | 302 | `GET /routines/:id/prefill` returns exercises + last session's numbers |
-| 🚧 `POST /routines/generate` | 509 | AI program from setup Q&A → strict JSON mapped to library IDs |
-| 🚧 `POST /routines/:id/adapt` | 510 | detector-triggered AI adjustment diff (user approves before apply) |
+| ✅ `GET /exercises?q=` · `POST /exercises` | 301 | global seed + user's custom |
+| ✅ `GET /exercises/:id/history` | 303 | best set + volume per session, for charts |
+| ✅ `GET/POST/PUT/DELETE /routines` | 302 | `GET /routines/:id/prefill` returns exercises + last session's numbers |
+| ✅ `POST /routines/generated/refine` | 120 | chat-to-edit over a program draft: `{insight_id, message}` → `{reply, updated_program?}`; ≤20 turns/draft |
+| ✅ `POST /routines/generate` | 509 | AI program from setup Q&A → strict JSON mapped to library IDs |
+| ✅ `POST /routines/generated/save` | 509 | writes generated days as normal editable routines |
+| ✅ `POST /routines/:id/adapt` | 510 | coach adjustment diff (user approves before apply) |
+| ✅ `POST /routines/:id/apply-diff` | 510 | logs an approved training adjustment |
 
 ### Analytics (pre-aggregated server-side; math in `packages/shared`, TDD'd)
 | Method & path | Story | Notes |
 |---|---|---|
-| 🚧 `GET /analytics/food?from&to` | 407 | adherence per day, macro splits, meal-type split, top foods |
-| 🚧 `GET /analytics/training?from&to` | 408 | weekly volume by muscle group, consistency, PR feed (e1RM), cardio |
-| 🚧 `GET /analytics/goal` | 409 | weight projection + ETA, pace vs plan, adherence↔progress series |
+| ✅ `GET /analytics/food?from&to` | 407 | adherence per day, macro splits, meal-type split, top foods |
+| ✅ `GET /analytics/training?from&to` | 408 | weekly volume by muscle group, consistency, PR feed (e1RM), cardio |
+| ✅ `GET /analytics/goal` | 409 | weight projection + ETA, pace vs plan, adherence↔progress series |
 
 ### Engagement & notifications
 | Method & path | Story | Notes |
 |---|---|---|
-| 🚧 `GET /quests?date=` | 605 | quest list + completion computed server-side from real logs |
-| 🚧 `GET /badges` | 604 | catalog + earned state; awarding is idempotent, evaluated server-side |
-| 🚧 `GET /streaks` | 602 | logging streak + perfect-day streak (shared logic) |
-| 🚧 `POST /devices` | 607 | Expo push-token registration (multi-device, token refresh) |
-| 🚧 `GET/PATCH /notification-prefs` | 607 | categories + quiet hours; enforced server-side before any push |
-| 🚧 `POST /notifications/test` | 607 | dev-only end-to-end push check |
+| ✅ `GET /quests?date=` | 605 | quest list + completion computed server-side from real logs |
+| ✅ `GET /badges` | 604 | starter catalog + earned state; awarding is idempotent, evaluated server-side |
+| ✅ `GET /streaks?date=` | 602 | food logging streak (perfect-day streak still pending) |
+| ✅ `POST /notifications/tokens` | 607 | Expo push-token registration (multi-device/token refresh via token upsert) |
+| ✅ `GET/PATCH /notifications/prefs` | 607 | categories + quiet hours persisted on profile |
+| ✅ `POST /notifications/test` | 607 | dev-only push eligibility check |
+| ✅ `POST /cron/weekly-review` | 603 | cron-callable weekly review generation, guarded by `CRON_SECRET` when set |
 
 ### Insights (AI)
 | Method & path | Story | Notes |
 |---|---|---|
-| 🚧 `GET /insights/weekly-summary?week=` | 501 | aggregate JSON only, no LLM |
-| 🚧 `POST /insights/generate` | 502 | idempotent per (user, week); 429 on Gemini quota |
-| 🚧 `GET /insights?kind=` | 503 | list stored reviews / physique feedback |
-| 🚧 `POST /insights/physique-compare` | 507 | multipart/base64 photos, ephemeral — **never persisted**; requires recorded consent; stores text only |
-| 🚧 `POST /insights/council` | 511 | coordinated weekly plan from goal + nutrition + training coach roles; diffs need user approval |
-| 🚧 `DELETE /insights/:id` | 503/507 | |
+| ✅ `GET /insights/weekly-summary?week=` | 501 | aggregate JSON only, no LLM |
+| ✅ `POST /insights/generate` | 502/511 | sparse users get the simple weekly review; data-rich users get the council plan |
+| ✅ `GET /insights` | 503 | list stored reviews / physique feedback |
+| ✅ `POST /insights/physique/analyze` | 507 | base64 photos accepted ephemerally; requires recorded consent; stores text only |
+| ✅ `POST /insights/council` | 511 | same sparse/data-rich boundary as generate; returns weekly fallback or council plan |
+| ✅ `POST /insights/:id/apply-proposal` | 511 | explicitly applies an approved council target diff; refuses locked targets; stamps `applied_at` |
+| ✅ `DELETE /insights/:id` | 503/507 | deletes a generated insight/feedback row |
+
+### Agentic assistant
+| Method & path | Story | Notes |
+|---|---|---|
+| ✅ `POST /assistant/chat` | 122–132 | `{thread_id?, message}` → SSE (`thought`, `function_call`, `text`, `proposal`, `done`, `error`); `proposal` includes the resolved artifact for immediate inline-card rendering; read + proposal tool loop, daily quota |
+| ✅ `GET /assistant/threads` | 122 | newest-first thread summaries, maximum 50 |
+| ✅ `GET /assistant/threads/:id` | 122 | resume one owned thread with up to 200 persisted messages and tool traces |
+| ✅ `POST /assistant/proposals/:id/apply` | 124/128–132 | optional edited `{proposal}` snapshot; owned, revalidated, idempotent approval for program/meal/food/workout/recipe/target proposals |
+| ✅ `POST /assistant/proposals/:id/save-recipe` | 131 | independently saves a rich food proposal as a reusable recipe without logging it |
+| ✅ `POST /assistant/proposals/:id/dismiss` | 124 | stamps an owned proposal dismissed without changing or closing its thread |
+
+Assistant tool inputs are closed contracts. Every object—including nested program exercises,
+planned meals, food ingredients, nutrient values, workout sets, recipes, and target changes—has
+explicit properties and rejects undeclared keys. Genuine alternatives are declared as bounded
+unions rather than accepted as arbitrary objects. Gemini uses validated tool choice, and the API
+revalidates every call with the corresponding strict Zod schema before reading data or creating an
+approval-only proposal artifact.
 
 ## Hono app structure
 
@@ -118,7 +148,7 @@ supabase/functions/api/
     error.ts          # catch-all → error envelope, logging
   routes/
     health.ts  me.ts  weights.ts  food-logs.ts  foods.ts  workouts.ts
-    exercises.ts  routines.ts  insights.ts  water.ts ...
+    exercises.ts  routines.ts  insights.ts  assistant.ts  gamification.ts  notifications.ts  cron.ts  water.ts ...
   services/           # logic with I/O (db queries, gemini.ts, openfoodfacts.ts)
 ```
 
@@ -131,6 +161,7 @@ never import Node-only APIs.
 
 - **Open Food Facts** — proxied so the client never calls third parties; API sets a proper
   `User-Agent`, tolerates upstream flakiness (`UPSTREAM_ERROR`), and may cache popular queries.
-- **Gemini** — key lives in Edge Function secrets; only aggregates or ephemeral photos are sent
-  (never raw logs, never emails); every AI feature has a versioned prompt in the repo.
+- **Gemini** — key lives in Edge Function secrets. One-shot routes send aggregates or ephemeral
+  photos. The agentic assistant can pull capped, PII-free rows through RLS-scoped read tools;
+  emails and photos are unavailable and no tool can write. Prompts/instructions are versioned.
   See [ai.md](ai.md).

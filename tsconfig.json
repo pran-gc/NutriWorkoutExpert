@@ -2,9 +2,20 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": [
+      "jest"
+    ],
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@shared": [
+        "./packages/shared/src/index.ts"
+      ],
+      "@shared/*": [
+        "./packages/shared/src/*"
       ]
     }
   },
@@ -13,5 +24,9 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "supabase/functions"
   ]
 }
