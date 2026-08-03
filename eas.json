@@ -24,6 +24,18 @@
     "production": {
       "channel": "production",
       "autoIncrement": true
+    },
+    "apk-release": {
+      "channel": "production",
+      "autoIncrement": true,
+      "credentialsSource": "local",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://tcezjkncjfaammuxagfi.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_Y7JOCTTlWixRL5KdIbFqQw_97Ku9P9m"
+      },
+      "android": {
+        "buildType": "apk"
+      }
     }
   },
   "submit": {
